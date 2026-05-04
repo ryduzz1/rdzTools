@@ -156,11 +156,17 @@ select {
   background: linear-gradient(180deg, var(--panel-2), var(--panel-3));
   padding: 6px 6px 6px 10px;
   transform: translateY(0) scale(1);
+  cursor: pointer;
   transition:
     transform var(--ease-fast),
     border-color var(--ease-fast),
     box-shadow var(--ease-fast),
     background var(--ease-fast);
+}
+
+.tool-row.has-custom-settings {
+  border-left: 2px solid rgba(45, 140, 255, 0.9);
+  padding-left: 8px;
 }
 
 .tool-row.active {
@@ -174,10 +180,12 @@ select {
   transform: translateY(-1px);
   border-color: var(--line-2);
   box-shadow: var(--shadow);
+  background: linear-gradient(180deg, #343434, #2a2a2a);
 }
 
 .tool-row.active:hover {
   border-color: var(--accent);
+  background: linear-gradient(180deg, #363636, #2b2b2b);
 }
 
 .tool-row.pressed {
@@ -185,7 +193,11 @@ select {
 }
 
 .tool-main {
+  display: flex;
+  align-items: center;
   min-width: 0;
+  width: 100%;
+  height: 100%;
   text-align: left;
   background: transparent;
   border: 0;
@@ -193,11 +205,7 @@ select {
   padding: 0;
   cursor: pointer;
   transition: transform var(--ease-fast), opacity var(--ease-fast);
-}
-
-.tool-main strong,
-.tool-main span {
-  display: block;
+  align-self: stretch;
 }
 
 .tool-main strong {
@@ -206,14 +214,35 @@ select {
   font-weight: 500;
 }
 
-.tool-main span {
+.tool-title-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(45, 140, 255, 0.12);
+  flex: 0 0 auto;
+}
+
+.tool-main > span:not(.tool-title-wrap) {
   display: none;
 }
 
 .icon-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -232,10 +261,23 @@ select {
     color var(--ease-fast);
 }
 
+.edit-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.edit-icon path {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
 .icon-button:hover,
 .ghost:hover,
-.apply:hover,
-.tool-main:hover {
+.apply:hover {
   transform: translateY(-1px);
 }
 

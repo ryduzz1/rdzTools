@@ -28,6 +28,32 @@ const tools = [
     ]
   },
   {
+    id: "wordBlurLeft",
+    group: "Text Animation",
+    title: "Word Blur In From Left",
+    blurb: "Each word slides in from the left with opacity and blur.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Control how long each word moves and how far apart the words fire.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Dial in the slide distance and whether the per-word blur is active.",
+        fields: [
+          { id: "distance", label: "Slide distance px (positive = from left)", type: "number", defaultValue: "40" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
     id: "wordBlurUp",
     group: "Text Animation",
     title: "Word Blur Up From Bottom",
@@ -54,6 +80,59 @@ const tools = [
     ]
   },
   {
+    id: "wordBlurDown",
+    group: "Text Animation",
+    title: "Word Blur Down From Top",
+    blurb: "Each word drops in from above with opacity and blur.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Use this when the text should feel like it settles down into place.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Set the travel amount and blur for a softer downward settle.",
+        fields: [
+          { id: "distance", label: "Slide distance px (positive = from top)", type: "number", defaultValue: "40" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "wordRotateIn",
+    group: "Text Animation",
+    title: "Word Rotate In",
+    blurb: "Each word swings into place with rotation, offset, and opacity.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Useful when you want a slightly more characterful title entrance.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.4" },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.16" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Offset, rotate, and optionally blur each word into place.",
+        fields: [
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "24" },
+          { id: "rotationStart", label: "Starting rotation (deg)", type: "number", defaultValue: "-18" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
+          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "5", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
     id: "layerScalePop",
     group: "Layer Animation",
     title: "Layer glitch scale",
@@ -64,6 +143,122 @@ const tools = [
         description: "Set the first frame of the pop. The rest is built on consecutive frames.",
         fields: [
           { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "layerFadeUp",
+    group: "Layer Animation",
+    title: "Layer fade up",
+    blurb: "Moves selected layers up into place with opacity.",
+    sections: [
+      {
+        title: "Timing",
+        description: "A straightforward layer entrance for solids, shapes, text, and comps.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.45" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion",
+        description: "Control how far the layer starts below its final position.",
+        fields: [
+          { id: "distance", label: "Vertical offset (px)", type: "number", defaultValue: "70" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "layerSlideRight",
+    group: "Layer Animation",
+    title: "Layer slide in from right",
+    blurb: "Moves selected layers in horizontally from the right with opacity.",
+    sections: [
+      {
+        title: "Timing",
+        description: "A fast horizontal entrance for UI, lower thirds, or cards.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion",
+        description: "Control how far the layer starts to the right.",
+        fields: [
+          { id: "distance", label: "Horizontal offset (px)", type: "number", defaultValue: "110" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "layerSlideLeft",
+    group: "Layer Animation",
+    title: "Layer slide in from left",
+    blurb: "Moves selected layers in horizontally from the left with opacity.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Pairs well with the right-side version for alternating layouts.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion",
+        description: "Control how far the layer starts to the left.",
+        fields: [
+          { id: "distance", label: "Horizontal offset (px)", type: "number", defaultValue: "110" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "layerRotatePop",
+    group: "Layer Animation",
+    title: "Layer rotate pop",
+    blurb: "Adds a slight scale and rotation pop to selected layers.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Useful for stickers, icons, and punchier graphic reveals.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.32" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Shape",
+        description: "Set how small and how rotated the layer starts.",
+        fields: [
+          { id: "scaleStart", label: "Starting scale (%)", type: "number", defaultValue: "82" },
+          { id: "rotationStart", label: "Starting rotation (deg)", type: "number", defaultValue: "-12" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "layerBlurFadeIn",
+    group: "Layer Animation",
+    title: "Layer blur fade in",
+    blurb: "Adds a quick blur-and-opacity entrance to selected layers.",
+    sections: [
+      {
+        title: "Timing",
+        description: "A softer reveal for comps, graphics, and atmospheric elements.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Style",
+        description: "Set the starting blur intensity.",
+        fields: [
+          { id: "blurAmt", label: "Starting blur (px)", type: "number", defaultValue: "18" }
         ]
       }
     ]
@@ -83,6 +278,45 @@ const tools = [
           { id: "duration", label: "Duration", type: "range", defaultValue: 1, min: 0.05, max: 2, step: 0.05, suffix: "s" },
           { id: "chaos", label: "Chaos", type: "range", defaultValue: 0, min: 0, max: 100, step: 1, suffix: "%" }
         ]
+      }
+    ]
+  },
+  {
+    id: "centerAnchor",
+    group: "Utility",
+    title: "Center anchor",
+    blurb: "Moves the anchor point to the visual center of selected layers.",
+    sections: [
+      {
+        title: "Action",
+        description: "No settings. This uses the current selected layers.",
+        fields: []
+      }
+    ]
+  },
+  {
+    id: "createControlNull",
+    group: "Utility",
+    title: "Create control null",
+    blurb: "Creates a centered control null in the active composition.",
+    sections: [
+      {
+        title: "Action",
+        description: "No settings. A new null is created immediately.",
+        fields: []
+      }
+    ]
+  },
+  {
+    id: "enableMotionBlur",
+    group: "Utility",
+    title: "Enable motion blur",
+    blurb: "Turns on motion blur for selected layers and the active composition.",
+    sections: [
+      {
+        title: "Action",
+        description: "No settings. Applies to the current selected layers.",
+        fields: []
       }
     ]
   }
@@ -153,6 +387,22 @@ function getToolSettings(toolId) {
   };
 }
 
+function hasCustomSettings(toolId) {
+  const tool = toolMap[toolId];
+  const saved = savedSettings[toolId];
+  if (!saved || !tool) {
+    return false;
+  }
+
+  for (const field of tool.sections.flatMap((section) => section.fields)) {
+    if (saved[field.id] !== undefined && saved[field.id] !== field.defaultValue) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function setStatus(message, tone = "normal") {
   return { message: message, tone: tone };
 }
@@ -178,11 +428,21 @@ function renderToolList() {
           ${groupTools
             .map(
               (tool) => `
-                <div class="tool-row row-enter ${tool.id === activeToolId ? "active" : ""}" style="animation-delay:${Math.min(220, indexOfTool(tool.id) * 26)}ms">
+                <div class="tool-row row-enter ${tool.id === activeToolId ? "active" : ""} ${hasCustomSettings(tool.id) ? "has-custom-settings" : ""}" style="animation-delay:${Math.min(220, indexOfTool(tool.id) * 26)}ms">
                   <button class="tool-main" data-select-tool="${tool.id}">
-                    <strong>${tool.title}</strong>
+                    <span class="tool-title-wrap">
+                      <strong>${tool.title}</strong>
+                    </span>
                   </button>
-                  <button class="icon-button" data-edit-tool="${tool.id}" aria-label="Edit settings">...</button>
+                  <div class="tool-actions">
+                    ${hasCustomSettings(tool.id) ? '<span class="tool-indicator" aria-hidden="true"></span>' : ""}
+                    <button class="icon-button" data-edit-tool="${tool.id}" aria-label="Edit settings">
+                      <svg class="edit-icon" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
+                        <path d="M10.8 3.7l1.5 1.5"></path>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               `
             )
@@ -423,16 +683,27 @@ document.getElementById("resetSettings").addEventListener("click", resetSettings
 document.querySelector(".overlay-backdrop").addEventListener("click", closeSettings);
 
 toolList.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-edit-tool]");
+  if (editButton) {
+    openSettings(editButton.dataset.editTool);
+    return;
+  }
+
+  const row = event.target.closest(".tool-row");
+  if (row) {
+    const selectButton = row.querySelector("[data-select-tool]");
+    if (selectButton) {
+      activeToolId = selectButton.dataset.selectTool;
+      syncActiveToolRow();
+    }
+    return;
+  }
+
   const selectButton = event.target.closest("[data-select-tool]");
   if (selectButton) {
     activeToolId = selectButton.dataset.selectTool;
     syncActiveToolRow();
     return;
-  }
-
-  const editButton = event.target.closest("[data-edit-tool]");
-  if (editButton) {
-    openSettings(editButton.dataset.editTool);
   }
 });
 

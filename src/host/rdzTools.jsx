@@ -25,8 +25,38 @@ var rdzTools = (function () {
     }
   }
 
+  function parseStartTime(comp, value) {
+    if (typeof value === "number" && !isNaN(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      var normalized = value.toLowerCase().replace(/^\s+|\s+$/g, "");
+      if (normalized !== "" && normalized !== "cursor" && normalized !== "playhead" && normalized !== "current") {
+        var parsed = parseFloat(value);
+        if (!isNaN(parsed)) {
+          return parsed;
+        }
+      }
+    }
+
+    return comp.time;
+  }
+
+  function getSelectedLayers(comp) {
+    return comp && comp.selectedLayers ? comp.selectedLayers : [];
+  }
+
+  function requireSelectedLayers(comp) {
+    var layers = getSelectedLayers(comp);
+    if (!layers.length) {
+      throw new Error("Select at least one layer.");
+    }
+    return layers;
+  }
+
   function getTextLayer(comp) {
-    var selected = comp.selectedLayers || [];
+    var selected = getSelectedLayers(comp);
     for (var i = 0; i < selected.length; i += 1) {
       if (selected[i].matchName === "ADBE Text Layer") {
         return selected[i];
@@ -94,7 +124,26 @@ var rdzTools = (function () {
     } catch (easeError) {}
   }
 
-  function key2(prop, t0, v0, t1, v1) {
+  function setLayerEase(prop) {
+    if (!prop || prop.numKeys < 2) {
+      return;
+    }
+
+    for (var keyIndex = 1; keyIndex <= prop.numKeys; keyIndex += 1) {
+      try {
+        prop.setInterpolationTypeAtKey(keyIndex, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+      } catch (interpolationError) {}
+    }
+
+    try {
+      var easeIn = new KeyframeEase(0, 45);
+      var easeOut = new KeyframeEase(0, 80);
+      prop.setTemporalEaseAtKey(1, [easeIn], [easeIn]);
+      prop.setTemporalEaseAtKey(2, [easeOut], [easeOut]);
+    } catch (easeError) {}
+  }
+
+  function key2(prop, t0, v0, t1, v1, easeSetter) {
     if (!prop) {
       return;
     }
@@ -109,7 +158,7 @@ var rdzTools = (function () {
 
     prop.setValueAtTime(t0, v0);
     prop.setValueAtTime(t1, v1);
-    setWordEase(prop);
+    (easeSetter || setWordEase)(prop);
   }
 
   function setSelectorToWord(rangeSelector, wordIndex, totalWords) {
@@ -131,65 +180,62 @@ var rdzTools = (function () {
     }
 
     if (advanced) {
-      try {
-        advanced.property(1).setValue(1);
-      } catch (unitsError) {}
-      try {
-        advanced.property(2).setValue(3);
-      } catch (basedOnError) {}
-      try {
-        advanced.property(3).setValue(1);
-      } catch (modeError) {}
-      try {
-        advanced.property(4).setValue(100);
-      } catch (amountError) {}
-      try {
-        advanced.property(5).setValue(1);
-      } catch (shapeError) {}
-      try {
-        advanced.property(6).setValue(0);
-      } catch (smoothnessError) {}
+      try { advanced.property(1).setValue(1); } catch (unitsError) {}
+      try { advanced.property(2).setValue(3); } catch (basedOnError) {}
+      try { advanced.property(3).setValue(1); } catch (modeError) {}
+      try { advanced.property(4).setValue(100); } catch (amountError) {}
+      try { advanced.property(5).setValue(1); } catch (shapeError) {}
+      try { advanced.property(6).setValue(0); } catch (smoothnessError) {}
     }
   }
 
-  function normalizeAnimationSettings(comp, payload) {
-    var wordDur = isNaN(payload.wordDur) ? 0.5 : Number(payload.wordDur);
-    var stagger = isNaN(payload.stagger) ? 0.2 : Number(payload.stagger);
-    var distance = isNaN(payload.distance) ? 40 : Number(payload.distance);
-    var blurAmt = isNaN(payload.blurAmt) ? 8 : Number(payload.blurAmt);
-    var startRaw = payload.startSec;
-    var startSec = comp.time;
-
-    if (typeof startRaw === "number") {
-      startSec = startRaw;
-    } else if (typeof startRaw === "string") {
-      var normalized = startRaw.toLowerCase().replace(/^\s+|\s+$/g, "");
-      if (normalized !== "" && normalized !== "cursor" && normalized !== "playhead" && normalized !== "current") {
-        var parsed = parseFloat(startRaw);
-        if (!isNaN(parsed)) {
-          startSec = parsed;
-        }
+  function configureTextAnimatorWordGrouping(layer) {
+    try {
+      var textProps = layer.property("ADBE Text Properties");
+      if (!textProps) {
+        return;
       }
-    }
+      var moreOptions = textProps.property("ADBE Text More Options");
+      if (!moreOptions) {
+        return;
+      }
 
+      try {
+        moreOptions.property(1).setValue(2);
+      } catch (anchorGroupingError) {}
+
+      try {
+        moreOptions.property(2).setValue([50, 50, 0]);
+      } catch (groupingAlignmentError) {}
+    } catch (groupingError) {}
+  }
+
+  function normalizeWordSettings(comp, payload) {
     return {
-      wordDur: Math.max(0.05, Math.min(2.0, wordDur)),
-      stagger: Math.max(0.0, Math.min(5.0, stagger)),
-      startSec: startSec,
-      distance: distance,
-      blurAmt: blurAmt,
-      blurEnabled: payload.blurEnabled !== false
+      wordDur: Math.max(0.05, Math.min(2.0, isNaN(payload.wordDur) ? 0.5 : Number(payload.wordDur))),
+      stagger: Math.max(0.0, Math.min(5.0, isNaN(payload.stagger) ? 0.2 : Number(payload.stagger))),
+      startSec: parseStartTime(comp, payload.startSec),
+      distance: isNaN(payload.distance) ? 40 : Number(payload.distance),
+      blurAmt: isNaN(payload.blurAmt) ? 8 : Number(payload.blurAmt),
+      blurEnabled: payload.blurEnabled !== false,
+      scaleStart: isNaN(payload.scaleStart) ? 100 : Number(payload.scaleStart),
+      scaleOvershoot: isNaN(payload.scaleOvershoot) ? 112 : Number(payload.scaleOvershoot),
+      rotationStart: isNaN(payload.rotationStart) ? 0 : Number(payload.rotationStart)
     };
   }
 
-  function applyWordAnimation(layer, comp, settings, direction) {
+
+  function applyWordAnimation(layer, comp, settings, options) {
     removeOldTextAnimators(layer);
+    configureTextAnimatorWordGrouping(layer);
 
     var textProps = layer.property("ADBE Text Properties");
     var animators = textProps.property("ADBE Text Animators");
     var srcText = textProps.property("ADBE Text Document").value.text;
     var words = srcText.match(/\S+/g);
     var numWords = words ? words.length : 1;
+    var startX = options.offsetX || 0;
+    var startY = options.offsetY || 0;
 
     for (var i = 0; i < numWords; i += 1) {
       var animator = animators.addProperty("ADBE Text Animator");
@@ -202,6 +248,8 @@ var rdzTools = (function () {
       }
       var opacityProp = addAnimatorProperty(animProps, "ADBE Text Opacity", "Opacity");
       var blurProp = settings.blurEnabled ? addAnimatorProperty(animProps, "ADBE Text Blur", "Blur") : null;
+      var scaleProp = settings.scaleStart !== 100 ? addAnimatorProperty(animProps, "ADBE Text Scale 3D", "Scale") : null;
+      var rotationProp = settings.rotationStart !== 0 ? addAnimatorProperty(animProps, "ADBE Text Rotation", "Rotation") : null;
 
       var selectors = animator.property("ADBE Text Selectors");
       var rangeSelector = selectors.addProperty("ADBE Text Selector");
@@ -213,26 +261,68 @@ var rdzTools = (function () {
 
       var t0 = settings.startSec + (i * settings.stagger);
       var t1 = t0 + settings.wordDur;
-      var startPos = direction === "up" ? [0, settings.distance, 0] : [settings.distance, 0, 0];
 
-      if (posProp) {
+      if (posProp && (startX !== 0 || startY !== 0)) {
         try {
-          key2(posProp, t0, startPos, t1, [0, 0, 0]);
+          key2(posProp, t0, [startX, startY, 0], t1, [0, 0, 0], setWordEase);
         } catch (position3dError) {
-          key2(posProp, t0, [startPos[0], startPos[1]], t1, [0, 0]);
+          key2(posProp, t0, [startX, startY], t1, [0, 0], setWordEase);
         }
       }
       if (opacityProp) {
-        key2(opacityProp, t0, 0, t1, 100);
+        key2(opacityProp, t0, 0, t1, 100, setWordEase);
       }
       if (settings.blurEnabled && blurProp) {
         try {
-          key2(blurProp, t0, [settings.blurAmt, settings.blurAmt], t1, [0, 0]);
+          key2(blurProp, t0, [settings.blurAmt, settings.blurAmt], t1, [0, 0], setWordEase);
         } catch (blur2dError) {
-          try {
-            key2(blurProp, t0, settings.blurAmt, t1, 0);
-          } catch (blur1dError) {}
+          try { key2(blurProp, t0, settings.blurAmt, t1, 0, setWordEase); } catch (blur1dError) {}
         }
+      }
+      if (scaleProp) {
+        if (options.scaleBounce) {
+          while (scaleProp.numKeys > 0) {
+            try {
+              scaleProp.removeKey(1);
+            } catch (removeScaleError) {
+              break;
+            }
+          }
+
+          var bounceMidA = t0 + (settings.wordDur * 0.48);
+          var bounceMidB = t0 + (settings.wordDur * 0.76);
+          try {
+            scaleProp.setValueAtTime(t0, [settings.scaleStart, settings.scaleStart, 100]);
+            scaleProp.setValueAtTime(bounceMidA, [settings.scaleOvershoot, settings.scaleOvershoot, 100]);
+            scaleProp.setValueAtTime(bounceMidB, [94, 94, 100]);
+            scaleProp.setValueAtTime(t1, [100, 100, 100]);
+          } catch (scale3dError) {
+            scaleProp.setValueAtTime(t0, [settings.scaleStart, settings.scaleStart]);
+            scaleProp.setValueAtTime(bounceMidA, [settings.scaleOvershoot, settings.scaleOvershoot]);
+            scaleProp.setValueAtTime(bounceMidB, [94, 94]);
+            scaleProp.setValueAtTime(t1, [100, 100]);
+          }
+          for (var scaleKeyIndex = 1; scaleKeyIndex <= scaleProp.numKeys; scaleKeyIndex += 1) {
+            try {
+              scaleProp.setInterpolationTypeAtKey(scaleKeyIndex, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+            } catch (scaleInterpolationError) {}
+          }
+          try {
+            scaleProp.setTemporalEaseAtKey(1, [new KeyframeEase(0, 20)], [new KeyframeEase(0, 82)]);
+            scaleProp.setTemporalEaseAtKey(2, [new KeyframeEase(0, 80)], [new KeyframeEase(0, 55)]);
+            scaleProp.setTemporalEaseAtKey(3, [new KeyframeEase(0, 55)], [new KeyframeEase(0, 70)]);
+            scaleProp.setTemporalEaseAtKey(4, [new KeyframeEase(0, 70)], [new KeyframeEase(0, 35)]);
+          } catch (scaleEaseError) {}
+        } else {
+          try {
+            key2(scaleProp, t0, [settings.scaleStart, settings.scaleStart, 100], t1, [100, 100, 100], setWordEase);
+          } catch (plainScale3dError) {
+            key2(scaleProp, t0, [settings.scaleStart, settings.scaleStart], t1, [100, 100], setWordEase);
+          }
+        }
+      }
+      if (rotationProp) {
+        key2(rotationProp, t0, settings.rotationStart, t1, 0, setWordEase);
       }
     }
 
@@ -262,36 +352,111 @@ var rdzTools = (function () {
       }
       return transform.property("ADBE Rotation");
     }
+    if (targetName === "Anchor Point") {
+      return transform.property("ADBE Anchor Point");
+    }
     return null;
   }
 
-  function normalizeScalePopSettings(comp, payload) {
-    var startRaw = payload.startSec;
-    if (typeof startRaw === "number" && !isNaN(startRaw)) {
-      return { startSec: startRaw };
+  function normalizeLayerSettings(comp, payload) {
+    return {
+      startSec: parseStartTime(comp, payload.startSec),
+      duration: Math.max(0.05, Math.min(3.0, isNaN(payload.duration) ? 0.45 : Number(payload.duration))),
+      distance: isNaN(payload.distance) ? 80 : Number(payload.distance),
+      blurAmt: isNaN(payload.blurAmt) ? 18 : Number(payload.blurAmt),
+      scaleStart: isNaN(payload.scaleStart) ? 82 : Number(payload.scaleStart),
+      rotationStart: isNaN(payload.rotationStart) ? -12 : Number(payload.rotationStart)
+    };
+  }
+
+  function applyLayerEntrance(layer, comp, settings, options) {
+    var positionProp = getTransformProp(layer, "Position");
+    var opacityProp = getTransformProp(layer, "Opacity");
+    var scaleProp = getTransformProp(layer, "Scale");
+    var rotationProp = getTransformProp(layer, "Rotation");
+    var t0 = settings.startSec;
+    var t1 = t0 + settings.duration;
+
+    if (opacityProp) {
+      opacityProp.setValueAtTime(t0, 0);
+      opacityProp.setValueAtTime(t1, 100);
+      setLayerEase(opacityProp);
     }
 
-    if (typeof startRaw === "string") {
-      var normalized = startRaw.toLowerCase().replace(/^\s+|\s+$/g, "");
-      if (normalized !== "" && normalized !== "cursor" && normalized !== "playhead" && normalized !== "current") {
-        var parsed = parseFloat(startRaw);
-        if (!isNaN(parsed)) {
-          return { startSec: parsed };
-        }
+    if (positionProp && (options.offsetX || options.offsetY)) {
+      var currentPosition = positionProp.value;
+      var startPosition = [currentPosition[0] + (options.offsetX || 0), currentPosition[1] + (options.offsetY || 0)];
+      if (currentPosition.length > 2) {
+        startPosition.push(currentPosition[2]);
+      }
+      positionProp.setValueAtTime(t0, startPosition);
+      positionProp.setValueAtTime(t1, currentPosition);
+      setLayerEase(positionProp);
+    }
+
+    if (scaleProp && options.scaleStart !== null && options.scaleStart !== undefined) {
+      var endScale = scaleProp.value;
+      var startScale = endScale.length > 2 ? [options.scaleStart, options.scaleStart, endScale[2]] : [options.scaleStart, options.scaleStart];
+      scaleProp.setValueAtTime(t0, startScale);
+      scaleProp.setValueAtTime(t1, endScale);
+      setLayerEase(scaleProp);
+    }
+
+    if (rotationProp && options.rotationStart) {
+      rotationProp.setValueAtTime(t0, options.rotationStart);
+      rotationProp.setValueAtTime(t1, 0);
+      setLayerEase(rotationProp);
+    }
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
+  }
+
+  function addOrGetEffect(layer, matchName) {
+    var effects = layer.property("ADBE Effect Parade");
+    if (!effects) {
+      throw new Error("Layer does not support effects.");
+    }
+
+    for (var i = 1; i <= effects.numProperties; i += 1) {
+      if (effects.property(i).matchName === matchName) {
+        return effects.property(i);
       }
     }
 
-    return { startSec: comp.time };
+    return effects.addProperty(matchName);
+  }
+
+  function applyLayerBlurFadeIn(layer, comp, settings) {
+    var opacityProp = getTransformProp(layer, "Opacity");
+    if (!opacityProp) {
+      throw new Error("Could not find Opacity property.");
+    }
+
+    var blur = addOrGetEffect(layer, "ADBE Gaussian Blur 2");
+    var t0 = settings.startSec;
+    var t1 = t0 + settings.duration;
+
+    opacityProp.setValueAtTime(t0, 0);
+    opacityProp.setValueAtTime(t1, 100);
+    setLayerEase(opacityProp);
+
+    blur.property(1).setValueAtTime(t0, settings.blurAmt);
+    blur.property(1).setValueAtTime(t1, 0);
+    try {
+      blur.property(2).setValue(1);
+    } catch (dimensionsError) {}
+    setLayerEase(blur.property(1));
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
   }
 
   function applyLayerScalePop(layer, comp, settings) {
     var scaleProp = getTransformProp(layer, "Scale");
     var opacityProp = getTransformProp(layer, "Opacity");
-    if (!scaleProp) {
-      throw new Error("Could not find Scale property.");
-    }
-    if (!opacityProp) {
-      throw new Error("Could not find Opacity property.");
+    if (!scaleProp || !opacityProp) {
+      throw new Error("Selected layer is missing Scale or Opacity.");
     }
 
     var originalScale = scaleProp.value;
@@ -313,18 +478,44 @@ var rdzTools = (function () {
     scaleProp.setValueAtTime(t2, originalScale);
 
     for (var scaleKey = Math.max(1, scaleProp.numKeys - 2); scaleKey <= scaleProp.numKeys; scaleKey += 1) {
-      try {
-        scaleProp.setInterpolationTypeAtKey(scaleKey, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
-      } catch (scaleInterpolationError) {}
+      try { scaleProp.setInterpolationTypeAtKey(scaleKey, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD); } catch (scaleInterpolationError) {}
     }
-
     for (var opacityKey = Math.max(1, opacityProp.numKeys - 1); opacityKey <= opacityProp.numKeys; opacityKey += 1) {
-      try {
-        opacityProp.setInterpolationTypeAtKey(opacityKey, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
-      } catch (opacityInterpolationError) {}
+      try { opacityProp.setInterpolationTypeAtKey(opacityKey, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD); } catch (opacityInterpolationError) {}
     }
 
     layer.motionBlur = true;
+    comp.motionBlur = true;
+  }
+
+  function centerAnchorPoint(layer) {
+    if (!layer.sourceRectAtTime) {
+      throw new Error("Layer does not support sourceRectAtTime.");
+    }
+
+    var rect = layer.sourceRectAtTime(layer.containingComp.time, false);
+    var anchor = getTransformProp(layer, "Anchor Point");
+    var position = getTransformProp(layer, "Position");
+    var currentAnchor = anchor.value;
+    var newAnchor = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+    var delta = [newAnchor[0] - currentAnchor[0], newAnchor[1] - currentAnchor[1]];
+    var currentPosition = position.value;
+
+    anchor.setValue(newAnchor);
+    position.setValue([currentPosition[0] + delta[0], currentPosition[1] + delta[1]]);
+  }
+
+  function createControlNull(comp) {
+    var nullLayer = comp.layers.addNull();
+    nullLayer.name = "rdz_CTRL";
+    nullLayer.label = 10;
+    nullLayer.selected = true;
+  }
+
+  function enableMotionBlur(comp, layers) {
+    for (var i = 0; i < layers.length; i += 1) {
+      layers[i].motionBlur = true;
+    }
     comp.motionBlur = true;
   }
 
@@ -374,7 +565,8 @@ var rdzTools = (function () {
   }
 
   function applyBouce(comp, settings) {
-    if (!comp.selectedLayers || comp.selectedLayers.length === 0) {
+    var selectedLayers = getSelectedLayers(comp);
+    if (!selectedLayers.length) {
       return "Error: Select at least one layer with keyframes.";
     }
 
@@ -382,8 +574,8 @@ var rdzTools = (function () {
     var skipped = 0;
     var expression = buildBouceExpression(settings);
 
-    for (var i = 0; i < comp.selectedLayers.length; i += 1) {
-      var layer = comp.selectedLayers[i];
+    for (var i = 0; i < selectedLayers.length; i += 1) {
+      var layer = selectedLayers[i];
       var prop = getTransformProp(layer, settings.target);
       if (!prop || prop.numKeys < 2) {
         skipped += 1;
@@ -410,6 +602,14 @@ var rdzTools = (function () {
     return message;
   }
 
+  function applyToSelectedLayers(comp, fn) {
+    var layers = requireSelectedLayers(comp);
+    for (var i = 0; i < layers.length; i += 1) {
+      fn(layers[i]);
+    }
+    return layers;
+  }
+
   function applyTool(toolId, rawPayload) {
     var comp = getActiveComp();
     if (!comp) {
@@ -420,35 +620,92 @@ var rdzTools = (function () {
     app.beginUndoGroup("rdzTools " + toolId);
 
     try {
-      if (toolId === "wordBlurRight") {
-        var rightLayer = getTextLayer(comp);
-        if (!rightLayer) {
+      if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn") {
+        var textLayer = getTextLayer(comp);
+        if (!textLayer) {
           throw new Error("No text layer found in comp.");
         }
-        applyWordAnimation(rightLayer, comp, normalizeAnimationSettings(comp, payload), "right");
-        return "OK: Applied Word Blur In From Right to " + rightLayer.name + ".";
-      }
 
-      if (toolId === "wordBlurUp") {
-        var upLayer = getTextLayer(comp);
-        if (!upLayer) {
-          throw new Error("No text layer found in comp.");
+        var wordSettings = normalizeWordSettings(comp, payload);
+        var options = {};
+
+        if (toolId === "wordBlurRight") { options = { offsetX: wordSettings.distance, offsetY: 0 }; }
+        if (toolId === "wordBlurLeft") { options = { offsetX: -wordSettings.distance, offsetY: 0 }; }
+        if (toolId === "wordBlurUp") { options = { offsetX: 0, offsetY: wordSettings.distance }; }
+        if (toolId === "wordBlurDown") { options = { offsetX: 0, offsetY: -wordSettings.distance }; }
+        if (toolId === "wordPopIn") {
+          options = { offsetX: 0, offsetY: 0, scaleBounce: true };
+          wordSettings.scaleStart = isNaN(payload.scaleStart) ? 25 : Number(payload.scaleStart);
+          wordSettings.scaleOvershoot = isNaN(payload.scaleOvershoot) ? 138 : Number(payload.scaleOvershoot);
         }
-        applyWordAnimation(upLayer, comp, normalizeAnimationSettings(comp, payload), "up");
-        return "OK: Applied Word Blur Up From Bottom to " + upLayer.name + ".";
+        if (toolId === "wordRotateIn") {
+          options = { offsetX: wordSettings.distance, offsetY: 0 };
+          wordSettings.rotationStart = isNaN(payload.rotationStart) ? -18 : Number(payload.rotationStart);
+        }
+
+        applyWordAnimation(textLayer, comp, wordSettings, options);
+        return "OK: Applied " + toolId + " to " + textLayer.name + ".";
       }
 
       if (toolId === "layerScalePop") {
-        var scaleLayer = getTextLayer(comp);
-        if (!scaleLayer) {
-          throw new Error("No text layer found in comp.");
+        var glitchLayers = requireSelectedLayers(comp);
+        var glitchSettings = normalizeLayerSettings(comp, payload);
+        for (var g = 0; g < glitchLayers.length; g += 1) {
+          applyLayerScalePop(glitchLayers[g], comp, glitchSettings);
         }
-        applyLayerScalePop(scaleLayer, comp, normalizeScalePopSettings(comp, payload));
-        return "OK: Applied Layer Scale Pop to " + scaleLayer.name + ".";
+        return "OK: Applied layer glitch scale to " + glitchLayers.length + " layer(s).";
+      }
+
+      if (toolId === "layerFadeUp" || toolId === "layerSlideRight" || toolId === "layerSlideLeft" || toolId === "layerRotatePop") {
+        var motionLayers = requireSelectedLayers(comp);
+        var layerSettings = normalizeLayerSettings(comp, payload);
+
+        for (var m = 0; m < motionLayers.length; m += 1) {
+          if (toolId === "layerFadeUp") {
+            applyLayerEntrance(motionLayers[m], comp, layerSettings, { offsetX: 0, offsetY: layerSettings.distance });
+          } else if (toolId === "layerSlideRight") {
+            applyLayerEntrance(motionLayers[m], comp, layerSettings, { offsetX: layerSettings.distance, offsetY: 0 });
+          } else if (toolId === "layerSlideLeft") {
+            applyLayerEntrance(motionLayers[m], comp, layerSettings, { offsetX: -layerSettings.distance, offsetY: 0 });
+          } else if (toolId === "layerRotatePop") {
+            applyLayerEntrance(motionLayers[m], comp, layerSettings, {
+              offsetX: 0,
+              offsetY: 0,
+              scaleStart: layerSettings.scaleStart,
+              rotationStart: layerSettings.rotationStart
+            });
+          }
+        }
+        return "OK: Applied " + toolId + " to " + motionLayers.length + " layer(s).";
+      }
+
+      if (toolId === "layerBlurFadeIn") {
+        var blurLayers = requireSelectedLayers(comp);
+        var blurSettings = normalizeLayerSettings(comp, payload);
+        for (var b = 0; b < blurLayers.length; b += 1) {
+          applyLayerBlurFadeIn(blurLayers[b], comp, blurSettings);
+        }
+        return "OK: Applied layer blur fade in to " + blurLayers.length + " layer(s).";
       }
 
       if (toolId === "bouce") {
         return applyBouce(comp, normalizeBouceSettings(payload));
+      }
+
+      if (toolId === "centerAnchor") {
+        var anchorLayers = applyToSelectedLayers(comp, centerAnchorPoint);
+        return "OK: Centered anchors on " + anchorLayers.length + " layer(s).";
+      }
+
+      if (toolId === "createControlNull") {
+        createControlNull(comp);
+        return "OK: Created control null.";
+      }
+
+      if (toolId === "enableMotionBlur") {
+        var motionBlurLayers = requireSelectedLayers(comp);
+        enableMotionBlur(comp, motionBlurLayers);
+        return "OK: Enabled motion blur on " + motionBlurLayers.length + " layer(s).";
       }
 
       throw new Error("Unknown tool: " + toolId);
@@ -464,21 +721,7 @@ var rdzTools = (function () {
     if (!comp) {
       return "No active composition.";
     }
-
-    var selection = comp.selectedLayers || [];
-    var textLayer = getTextLayer(comp);
-
-    if (!selection.length) {
-      return textLayer
-        ? 'Active comp "' + comp.name + '" with no selected layers. First text layer: "' + textLayer.name + '".'
-        : 'Active comp "' + comp.name + '" with no selected layers.';
-    }
-
-    var summary = 'Active comp "' + comp.name + '" with ' + selection.length + " selected layer(s).";
-    if (textLayer) {
-      summary += ' Text target: "' + textLayer.name + '".';
-    }
-    return summary;
+    return 'Active comp "' + comp.name + '".';
   }
 
   function ping() {
