@@ -1,4 +1,6 @@
 const SETTINGS_KEY = "rdzTools.toolSettings.v1";
+const FAVORITES_KEY = "rdzTools.favorites.v1";
+const FAVORITES_HINT_KEY = "rdzTools.favoritesHintDismissed.v1";
 
 const tools = [
   {
@@ -328,6 +330,15 @@ const bridge = getBridge();
 let activeToolId = tools[0].id;
 let editingToolId = null;
 let savedSettings = loadSavedSettings();
+let favoriteToolIds = loadFavoriteToolIds();
+let draggedToolId = null;
+let draggedFromFavorites = false;
+let dragGesture = null;
+let dragGhost = null;
+let dragGhostOffset = { x: 0, y: 0 };
+let suppressNextClick = false;
+let hasRenderedListOnce = false;
+let favoritesHintDismissed = loadFavoritesHintDismissed();
 
 const toolList = document.getElementById("toolList");
 const fieldMount = document.getElementById("fieldMount");
@@ -373,6 +384,35 @@ function persistSettings() {
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(savedSettings));
 }
 
+function loadFavoriteToolIds() {
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((toolId) => !!toolMap[toolId]);
+  } catch (error) {
+    return [];
+  }
+}
+
+function persistFavoriteToolIds() {
+  window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoriteToolIds));
+}
+
+function loadFavoritesHintDismissed() {
+  try {
+    return window.localStorage.getItem(FAVORITES_HINT_KEY) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function persistFavoritesHintDismissed() {
+  window.localStorage.setItem(FAVORITES_HINT_KEY, favoritesHintDismissed ? "true" : "false");
+}
+
 function getToolSettings(toolId) {
   const tool = toolMap[toolId];
   const defaults = {};
@@ -403,6 +443,99 @@ function hasCustomSettings(toolId) {
   return false;
 }
 
+function isFavorite(toolId) {
+  return favoriteToolIds.indexOf(toolId) !== -1;
+}
+
+function addFavorite(toolId, index) {
+  const existingIndex = favoriteToolIds.indexOf(toolId);
+  if (existingIndex !== -1) {
+    favoriteToolIds.splice(existingIndex, 1);
+  }
+
+  if (index === undefined || index < 0 || index > favoriteToolIds.length) {
+    favoriteToolIds.push(toolId);
+  } else {
+    favoriteToolIds.splice(index, 0, toolId);
+  }
+
+  persistFavoriteToolIds();
+}
+
+function moveFavorite(toolId, index) {
+  const existingIndex = favoriteToolIds.indexOf(toolId);
+  if (existingIndex === -1) {
+    return;
+  }
+
+  favoriteToolIds.splice(existingIndex, 1);
+
+  let nextIndex = index;
+  if (existingIndex < index) {
+    nextIndex -= 1;
+  }
+
+  if (nextIndex < 0) {
+    nextIndex = 0;
+  }
+  if (nextIndex > favoriteToolIds.length) {
+    nextIndex = favoriteToolIds.length;
+  }
+
+  favoriteToolIds.splice(nextIndex, 0, toolId);
+  persistFavoriteToolIds();
+}
+
+function removeFavorite(toolId) {
+  const existingIndex = favoriteToolIds.indexOf(toolId);
+  if (existingIndex === -1) {
+    return;
+  }
+  favoriteToolIds.splice(existingIndex, 1);
+  persistFavoriteToolIds();
+}
+
+function favoriteHeaderMarkup() {
+  return `
+    <div class="group-head favorite-head">
+      <svg class="star-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 1.6l1.85 3.76 4.15.6-3 2.92.7 4.12L8 11.05 4.3 13l.7-4.12L2 5.96l4.15-.6z"></path>
+      </svg>
+      Favorites
+    </div>
+  `;
+}
+
+function rowAnimationClass() {
+  return hasRenderedListOnce ? "" : "row-enter";
+}
+
+function toolRowMarkup(tool, options) {
+  const isActive = tool.id === activeToolId;
+  const isEdited = hasCustomSettings(tool.id);
+  const isFavoriteRow = !!(options && options.favoriteRow);
+  const animationDelay = hasRenderedListOnce ? "" : `animation-delay:${Math.min(220, indexOfTool(tool.id) * 26)}ms`;
+
+  return `
+    <div class="tool-row ${rowAnimationClass()} ${isActive ? "active" : ""} ${isEdited ? "has-custom-settings" : ""}" data-tool-id="${tool.id}" ${isFavoriteRow ? 'data-favorite-row="true"' : ""} style="${animationDelay}">
+      <div class="tool-main" data-select-tool="${tool.id}" role="presentation">
+        <span class="tool-title-wrap">
+          <strong>${tool.title}</strong>
+        </span>
+      </div>
+      <div class="tool-actions">
+        ${isEdited ? '<span class="tool-indicator" aria-hidden="true"></span>' : ""}
+        <button class="icon-button" data-edit-tool="${tool.id}" aria-label="Edit settings">
+          <svg class="edit-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
+            <path d="M10.8 3.7l1.5 1.5"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 function setStatus(message, tone = "normal") {
   return { message: message, tone: tone };
 }
@@ -414,53 +547,218 @@ function escapeString(value) {
 function renderToolList() {
   const groups = new Map();
   for (const tool of tools) {
+    if (isFavorite(tool.id)) {
+      continue;
+    }
     if (!groups.has(tool.group)) {
       groups.set(tool.group, []);
     }
     groups.get(tool.group).push(tool);
   }
 
-  toolList.innerHTML = Array.from(groups.entries())
-    .map(
-      ([group, groupTools]) => `
-        <section class="group-block">
-          <div class="group-head">${group}</div>
-          ${groupTools
-            .map(
-              (tool) => `
-                <div class="tool-row row-enter ${tool.id === activeToolId ? "active" : ""} ${hasCustomSettings(tool.id) ? "has-custom-settings" : ""}" style="animation-delay:${Math.min(220, indexOfTool(tool.id) * 26)}ms">
-                  <button class="tool-main" data-select-tool="${tool.id}">
-                    <span class="tool-title-wrap">
-                      <strong>${tool.title}</strong>
-                    </span>
-                  </button>
-                  <div class="tool-actions">
-                    ${hasCustomSettings(tool.id) ? '<span class="tool-indicator" aria-hidden="true"></span>' : ""}
-                    <button class="icon-button" data-edit-tool="${tool.id}" aria-label="Edit settings">
-                      <svg class="edit-icon" viewBox="0 0 16 16" aria-hidden="true">
-                        <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
-                        <path d="M10.8 3.7l1.5 1.5"></path>
-                      </svg>
-                    </button>
-                  </div>
+  const favoriteTools = favoriteToolIds.map((toolId) => toolMap[toolId]).filter(Boolean);
+
+  const favoritesMarkup = `
+    <section class="group-block favorites-block" data-favorites-block="true">
+      ${favoriteHeaderMarkup()}
+      <div class="favorite-dropzone ${favoriteTools.length ? "" : "is-empty"}" data-favorite-dropzone="true">
+        ${
+          favoriteTools.length
+            ? favoriteTools
+                .map((tool) => toolRowMarkup(tool, { favoriteRow: true }))
+                .join("")
+            : favoritesHintDismissed
+              ? '<div class="favorite-blank"></div>'
+              : `
+                <div class="favorite-empty">
+                  <span class="favorite-empty-copy">Drag tools here to pin them as favorites.</span>
+                  <button class="hint-close" data-dismiss-favorites-hint="true" aria-label="Dismiss favorites hint">×</button>
                 </div>
               `
-            )
+        }
+      </div>
+    </section>
+  `;
+
+  toolList.innerHTML = favoritesMarkup + Array.from(groups.entries())
+    .map(
+      ([group, groupTools]) => `
+        <section class="group-block category-block" data-category-group="${group}">
+          <div class="group-head">${group}</div>
+          ${groupTools
+            .map((tool) => toolRowMarkup(tool))
             .join("")}
         </section>
       `
     )
     .join("");
+
+  hasRenderedListOnce = true;
 }
 
 function syncActiveToolRow() {
   document.querySelectorAll(".tool-row").forEach((row) => {
-    const button = row.querySelector("[data-select-tool]");
-    if (!button) {
-      return;
-    }
-    row.classList.toggle("active", button.dataset.selectTool === activeToolId);
+    row.classList.toggle("active", row.dataset.toolId === activeToolId);
   });
+}
+
+function clearDropMarkers() {
+  document.querySelectorAll(".tool-row.drop-before, .tool-row.drop-after").forEach((row) => {
+    row.classList.remove("drop-before", "drop-after");
+  });
+  toolList.querySelectorAll("[data-favorite-dropzone]").forEach((zone) => zone.classList.remove("active"));
+  toolList.querySelectorAll("[data-favorites-block].drop-target").forEach((block) => block.classList.remove("drop-target"));
+  document.querySelectorAll(".category-block.drop-target").forEach((block) => {
+    block.classList.remove("drop-target");
+  });
+}
+
+function endDragState() {
+  document.querySelectorAll(".tool-row.dragging").forEach((row) => row.classList.remove("dragging"));
+  clearDropMarkers();
+  if (dragGhost && dragGhost.parentNode) {
+    dragGhost.parentNode.removeChild(dragGhost);
+  }
+  dragGhost = null;
+  dragGhostOffset = { x: 0, y: 0 };
+  draggedToolId = null;
+  draggedFromFavorites = false;
+  dragGesture = null;
+  toolList.classList.remove("drag-active");
+  toolList.classList.remove("drag-primed");
+}
+
+function createDragGhost(toolId, row) {
+  const tool = toolMap[toolId];
+  if (!tool) {
+    return null;
+  }
+
+  const rect = row ? row.getBoundingClientRect() : null;
+  const ghost = document.createElement("div");
+  ghost.className = "drag-ghost";
+  if (rect) {
+    ghost.style.width = `${Math.round(rect.width)}px`;
+    ghost.style.height = `${Math.round(rect.height)}px`;
+  }
+  ghost.innerHTML = `
+    <div class="drag-ghost-stack">
+      <div class="drag-ghost-card back-a"></div>
+      <div class="drag-ghost-card back-b"></div>
+      <div class="drag-ghost-card front">
+        <span class="drag-ghost-title">${tool.title}</span>
+        <span class="tool-indicator" aria-hidden="true"></span>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ghost);
+  return ghost;
+}
+
+function updateDragGhostPosition(clientX, clientY) {
+  if (!dragGhost) {
+    return;
+  }
+  dragGhost.style.left = `${clientX - dragGhostOffset.x}px`;
+  dragGhost.style.top = `${clientY - dragGhostOffset.y}px`;
+}
+
+function getDropContext(clientX, clientY) {
+  const target = document.elementFromPoint(clientX, clientY);
+  if (!target) {
+    return null;
+  }
+
+  const favoriteRow = target.closest('[data-favorite-row="true"]');
+  if (favoriteRow && favoriteRow.dataset.toolId !== draggedToolId) {
+    const rect = favoriteRow.getBoundingClientRect();
+    return {
+      type: "favorite-row",
+      row: favoriteRow,
+      before: clientY < rect.top + rect.height / 2
+    };
+  }
+
+  const favoriteZone = target.closest("[data-favorite-dropzone]");
+  const favoritesBlock = target.closest("[data-favorites-block]");
+  if (favoriteZone || favoritesBlock) {
+    return {
+      type: "favorites-block",
+      zone: favoriteZone || (favoritesBlock ? favoritesBlock.querySelector("[data-favorite-dropzone]") : null),
+      block: favoritesBlock
+    };
+  }
+
+  const categoryBlock = target.closest("[data-category-group]");
+  if (categoryBlock && draggedFromFavorites) {
+    return {
+      type: "category-block",
+      block: categoryBlock
+    };
+  }
+
+  return null;
+}
+
+function applyDropMarkers(context) {
+  clearDropMarkers();
+  if (!context) {
+    return;
+  }
+
+  if (context.type === "favorite-row") {
+    context.row.classList.add(context.before ? "drop-before" : "drop-after");
+    return;
+  }
+
+  if (context.type === "favorites-block") {
+    if (context.zone) {
+      context.zone.classList.add("active");
+    }
+    if (context.block) {
+      context.block.classList.add("drop-target");
+    }
+    return;
+  }
+
+  if (context.type === "category-block") {
+    context.block.classList.add("drop-target");
+  }
+}
+
+function commitDrop(context) {
+  if (!context || !draggedToolId) {
+    return false;
+  }
+
+  if (context.type === "favorite-row") {
+    const targetToolId = context.row.dataset.toolId;
+    const targetIndex = favoriteToolIds.indexOf(targetToolId);
+    const insertIndex = context.before ? targetIndex : targetIndex + 1;
+
+    if (draggedFromFavorites) {
+      moveFavorite(draggedToolId, insertIndex);
+    } else {
+      addFavorite(draggedToolId, insertIndex);
+    }
+    return true;
+  }
+
+  if (context.type === "favorites-block") {
+    if (draggedFromFavorites) {
+      moveFavorite(draggedToolId, favoriteToolIds.length);
+    } else {
+      addFavorite(draggedToolId);
+    }
+    return true;
+  }
+
+  if (context.type === "category-block" && draggedFromFavorites) {
+    removeFavorite(draggedToolId);
+    return true;
+  }
+
+  return false;
 }
 
 function indexOfTool(toolId) {
@@ -683,6 +981,22 @@ document.getElementById("resetSettings").addEventListener("click", resetSettings
 document.querySelector(".overlay-backdrop").addEventListener("click", closeSettings);
 
 toolList.addEventListener("click", (event) => {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  const dismissHintButton = event.target.closest("[data-dismiss-favorites-hint]");
+  if (dismissHintButton) {
+    favoritesHintDismissed = true;
+    persistFavoritesHintDismissed();
+    renderToolList();
+    syncActiveToolRow();
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-tool]");
   if (editButton) {
     openSettings(editButton.dataset.editTool);
@@ -691,26 +1005,9 @@ toolList.addEventListener("click", (event) => {
 
   const row = event.target.closest(".tool-row");
   if (row) {
-    const selectButton = row.querySelector("[data-select-tool]");
-    if (selectButton) {
-      activeToolId = selectButton.dataset.selectTool;
-      syncActiveToolRow();
-    }
-    return;
-  }
-
-  const selectButton = event.target.closest("[data-select-tool]");
-  if (selectButton) {
-    activeToolId = selectButton.dataset.selectTool;
+    activeToolId = row.dataset.toolId;
     syncActiveToolRow();
     return;
-  }
-});
-
-toolList.addEventListener("pointerdown", (event) => {
-  const row = event.target.closest(".tool-row");
-  if (row) {
-    row.classList.add("pressed");
   }
 });
 
@@ -718,8 +1015,100 @@ function clearPressedRows() {
   document.querySelectorAll(".tool-row.pressed").forEach((row) => row.classList.remove("pressed"));
 }
 
-toolList.addEventListener("pointerup", clearPressedRows);
-toolList.addEventListener("pointerleave", clearPressedRows);
+function pressRowState(event) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  const row = event.target.closest(".tool-row");
+  if (!row) {
+    return;
+  }
+
+  row.classList.add("pressed");
+  if (event.target.closest("[data-edit-tool]") || event.target.closest("[data-dismiss-favorites-hint]")) {
+    dragGesture = null;
+    toolList.classList.remove("drag-primed");
+    return;
+  }
+
+  dragGesture = {
+    toolId: row.dataset.toolId,
+    fromFavorites: row.dataset.favoriteRow === "true",
+    row,
+    startX: event.clientX || 0,
+    startY: event.clientY || 0,
+    active: false
+  };
+}
+
+toolList.addEventListener("mousedown", pressRowState);
+
+function maybePrimeDrag(event) {
+  if (draggedToolId) {
+    updateDragGhostPosition(event.clientX || 0, event.clientY || 0);
+    applyDropMarkers(getDropContext(event.clientX || 0, event.clientY || 0));
+    return;
+  }
+
+  if (!dragGesture) {
+    return;
+  }
+
+  const dx = (event.clientX || 0) - dragGesture.startX;
+  const dy = (event.clientY || 0) - dragGesture.startY;
+  if ((dx * dx) + (dy * dy) >= 36) {
+    if (!dragGesture.active) {
+      dragGesture.active = true;
+      draggedToolId = dragGesture.toolId;
+      draggedFromFavorites = dragGesture.fromFavorites;
+      dragGesture.row.classList.add("dragging");
+      dragGhost = createDragGhost(draggedToolId, dragGesture.row);
+      const rowRect = dragGesture.row.getBoundingClientRect();
+      dragGhostOffset = {
+        x: Math.max(0, Math.min(rowRect.width, (event.clientX || 0) - rowRect.left)),
+        y: Math.max(0, Math.min(rowRect.height, (event.clientY || 0) - rowRect.top))
+      };
+      updateDragGhostPosition(event.clientX || 0, event.clientY || 0);
+      toolList.classList.remove("drag-primed");
+      toolList.classList.add("drag-active");
+      suppressNextClick = true;
+    }
+
+    updateDragGhostPosition(event.clientX || 0, event.clientY || 0);
+    applyDropMarkers(getDropContext(event.clientX || 0, event.clientY || 0));
+  } else {
+    toolList.classList.add("drag-primed");
+  }
+}
+
+document.addEventListener("mousemove", (event) => {
+  maybePrimeDrag(event);
+});
+window.addEventListener("mousemove", maybePrimeDrag);
+
+document.addEventListener("mouseup", (event) => {
+  clearPressedRows();
+
+  if (!draggedToolId) {
+    dragGesture = null;
+    toolList.classList.remove("drag-primed");
+    return;
+  }
+
+  const committed = commitDrop(getDropContext(event.clientX || 0, event.clientY || 0));
+  endDragState();
+
+  if (committed) {
+    renderToolList();
+    syncActiveToolRow();
+  }
+});
+
+window.addEventListener("blur", () => {
+  clearPressedRows();
+  endDragState();
+});
 
 fieldMount.addEventListener("input", (event) => {
   const fieldId = event.target.dataset.fieldId;
