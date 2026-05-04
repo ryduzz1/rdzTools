@@ -266,6 +266,80 @@ const tools = [
     ]
   },
   {
+    id: "lookSoftShadow",
+    group: "Looks",
+    title: "Soft shadow",
+    blurb: "Adds a clean, modern shadow for shapes, type, and cards.",
+    sections: [
+      {
+        title: "Shadow",
+        description: "A balanced default shadow that gives flat layers more depth without getting muddy.",
+        fields: [
+          { id: "opacity", label: "Shadow opacity (%)", type: "number", defaultValue: "42" },
+          { id: "distance", label: "Distance (px)", type: "number", defaultValue: "18" },
+          { id: "softness", label: "Softness (px)", type: "number", defaultValue: "28" },
+          { id: "angle", label: "Light angle (deg)", type: "number", defaultValue: "135" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "lookLongShadow",
+    group: "Looks",
+    title: "Long shadow",
+    blurb: "Pushes layers into a more graphic, directional shadow treatment.",
+    sections: [
+      {
+        title: "Shadow",
+        description: "Useful for bolder layouts, type treatments, and punchier graphic panels.",
+        fields: [
+          { id: "opacity", label: "Shadow opacity (%)", type: "number", defaultValue: "58" },
+          { id: "distance", label: "Distance (px)", type: "number", defaultValue: "52" },
+          { id: "softness", label: "Softness (px)", type: "number", defaultValue: "16" },
+          { id: "angle", label: "Light angle (deg)", type: "number", defaultValue: "135" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "lookBevelLite",
+    group: "Looks",
+    title: "Bevel lite",
+    blurb: "Adds a restrained alpha bevel that works well on clean graphic layers.",
+    sections: [
+      {
+        title: "Bevel",
+        description: "Use lightly. This is for polished edge definition, not chunky faux-3D.",
+        fields: [
+          { id: "thickness", label: "Edge thickness", type: "number", defaultValue: "4" },
+          { id: "lightAngle", label: "Light angle (deg)", type: "number", defaultValue: "135" },
+          { id: "lightIntensity", label: "Light intensity", type: "number", defaultValue: "0.7" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "lookLiquidGlass",
+    group: "Looks",
+    title: "Liquid glass",
+    blurb: "Builds a soft glassy stack with bevel, blur, glow, and shadow.",
+    sections: [
+      {
+        title: "Glass Stack",
+        description: "This is a first-pass native-AE glass treatment for glossy panels and soft UI chips.",
+        fields: [
+          { id: "blurAmt", label: "Surface blur (px)", type: "number", defaultValue: "3" },
+          { id: "bevelThickness", label: "Bevel thickness", type: "number", defaultValue: "7" },
+          { id: "glowRadius", label: "Glow radius", type: "number", defaultValue: "22" },
+          { id: "glowIntensity", label: "Glow intensity", type: "number", defaultValue: "0.45" },
+          { id: "shadowOpacity", label: "Shadow opacity (%)", type: "number", defaultValue: "24" },
+          { id: "shadowDistance", label: "Shadow distance (px)", type: "number", defaultValue: "10" },
+          { id: "shadowSoftness", label: "Shadow softness (px)", type: "number", defaultValue: "24" }
+        ]
+      }
+    ]
+  },
+  {
     id: "bouce",
     group: "Utility",
     title: "Bouce",

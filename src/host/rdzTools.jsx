@@ -427,6 +427,116 @@ var rdzTools = (function () {
     return effects.addProperty(matchName);
   }
 
+  function addOrGetEffectFlexible(layer, matchName, fallbackName) {
+    var effects = layer.property("ADBE Effect Parade");
+    if (!effects) {
+      throw new Error("Layer does not support effects.");
+    }
+
+    for (var i = 1; i <= effects.numProperties; i += 1) {
+      var effect = effects.property(i);
+      if (effect.matchName === matchName || (fallbackName && effect.name === fallbackName)) {
+        return effect;
+      }
+    }
+
+    try {
+      return effects.addProperty(matchName);
+    } catch (matchNameError) {}
+
+    if (fallbackName) {
+      try {
+        return effects.addProperty(fallbackName);
+      } catch (fallbackError) {}
+    }
+
+    throw new Error("Could not add effect: " + (fallbackName || matchName));
+  }
+
+  function setEffectValue(effect, ids, value) {
+    if (!effect) {
+      return false;
+    }
+
+    for (var i = 0; i < ids.length; i += 1) {
+      try {
+        var prop = effect.property(ids[i]);
+        if (prop) {
+          prop.setValue(value);
+          return true;
+        }
+      } catch (propertyError) {}
+    }
+
+    return false;
+  }
+
+  function normalizeLookSettings(payload) {
+    return {
+      opacity: isNaN(payload.opacity) ? 42 : Number(payload.opacity),
+      distance: isNaN(payload.distance) ? 18 : Number(payload.distance),
+      softness: isNaN(payload.softness) ? 28 : Number(payload.softness),
+      angle: isNaN(payload.angle) ? 135 : Number(payload.angle),
+      thickness: isNaN(payload.thickness) ? 4 : Number(payload.thickness),
+      lightAngle: isNaN(payload.lightAngle) ? 135 : Number(payload.lightAngle),
+      lightIntensity: isNaN(payload.lightIntensity) ? 0.7 : Number(payload.lightIntensity),
+      blurAmt: isNaN(payload.blurAmt) ? 3 : Number(payload.blurAmt),
+      bevelThickness: isNaN(payload.bevelThickness) ? 7 : Number(payload.bevelThickness),
+      glowRadius: isNaN(payload.glowRadius) ? 22 : Number(payload.glowRadius),
+      glowIntensity: isNaN(payload.glowIntensity) ? 0.45 : Number(payload.glowIntensity),
+      shadowOpacity: isNaN(payload.shadowOpacity) ? 24 : Number(payload.shadowOpacity),
+      shadowDistance: isNaN(payload.shadowDistance) ? 10 : Number(payload.shadowDistance),
+      shadowSoftness: isNaN(payload.shadowSoftness) ? 24 : Number(payload.shadowSoftness)
+    };
+  }
+
+  function applyDropShadowLook(layer, settings) {
+    var shadow = addOrGetEffectFlexible(layer, "ADBE Drop Shadow", "Drop Shadow");
+    setEffectValue(shadow, [2, "Opacity"], Math.max(0, Math.min(100, settings.opacity)));
+    setEffectValue(shadow, [3, "Direction"], settings.angle);
+    setEffectValue(shadow, [4, "Distance"], Math.max(0, settings.distance));
+    setEffectValue(shadow, [5, "Softness"], Math.max(0, settings.softness));
+    setEffectValue(shadow, [6, "Shadow Only"], 0);
+  }
+
+  function applyBevelLiteLook(layer, settings) {
+    var bevel = addOrGetEffectFlexible(layer, "ADBE Bevel Alpha", "Bevel Alpha");
+    setEffectValue(bevel, [1, "Edge Thickness"], Math.max(0, settings.thickness));
+    setEffectValue(bevel, [2, "Light Angle"], settings.lightAngle);
+    setEffectValue(bevel, [3, "Light Intensity"], Math.max(0, settings.lightIntensity));
+  }
+
+  function applyGlowLook(layer, settings) {
+    var glow = addOrGetEffectFlexible(layer, "ADBE Glow", "Glow");
+    setEffectValue(glow, [2, "Glow Threshold"], 60);
+    setEffectValue(glow, [3, "Glow Radius"], Math.max(0, settings.glowRadius));
+    setEffectValue(glow, [4, "Glow Intensity"], Math.max(0, settings.glowIntensity));
+  }
+
+  function applyLiquidGlassLook(layer, settings) {
+    var blur = addOrGetEffect(layer, "ADBE Gaussian Blur 2");
+    setEffectValue(blur, [1], Math.max(0, settings.blurAmt));
+    setEffectValue(blur, [2], 1);
+
+    applyBevelLiteLook(layer, {
+      thickness: settings.bevelThickness,
+      lightAngle: 125,
+      lightIntensity: 0.85
+    });
+
+    applyDropShadowLook(layer, {
+      opacity: settings.shadowOpacity,
+      distance: settings.shadowDistance,
+      softness: settings.shadowSoftness,
+      angle: 120
+    });
+
+    applyGlowLook(layer, {
+      glowRadius: settings.glowRadius,
+      glowIntensity: settings.glowIntensity
+    });
+  }
+
   function applyLayerBlurFadeIn(layer, comp, settings) {
     var opacityProp = getTransformProp(layer, "Opacity");
     if (!opacityProp) {
@@ -686,6 +796,30 @@ var rdzTools = (function () {
           applyLayerBlurFadeIn(blurLayers[b], comp, blurSettings);
         }
         return "OK: Applied layer blur fade in to " + blurLayers.length + " layer(s).";
+      }
+
+      if (toolId === "lookSoftShadow" || toolId === "lookLongShadow" || toolId === "lookBevelLite" || toolId === "lookLiquidGlass") {
+        var lookLayers = requireSelectedLayers(comp);
+        var lookSettings = normalizeLookSettings(payload);
+
+        for (var l = 0; l < lookLayers.length; l += 1) {
+          if (toolId === "lookSoftShadow") {
+            applyDropShadowLook(lookLayers[l], lookSettings);
+          } else if (toolId === "lookLongShadow") {
+            applyDropShadowLook(lookLayers[l], {
+              opacity: lookSettings.opacity,
+              distance: lookSettings.distance,
+              softness: lookSettings.softness,
+              angle: lookSettings.angle
+            });
+          } else if (toolId === "lookBevelLite") {
+            applyBevelLiteLook(lookLayers[l], lookSettings);
+          } else if (toolId === "lookLiquidGlass") {
+            applyLiquidGlassLook(lookLayers[l], lookSettings);
+          }
+        }
+
+        return "OK: Applied " + toolId + " to " + lookLayers.length + " layer(s).";
       }
 
       if (toolId === "bouce") {

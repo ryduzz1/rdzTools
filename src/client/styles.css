@@ -15,6 +15,7 @@
   --shadow-strong: 0 16px 28px rgba(0, 0, 0, 0.34);
   --ease-fast: 170ms cubic-bezier(0.22, 1, 0.36, 1);
   --ease-soft: 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: 420ms cubic-bezier(0.2, 0.9, 0.22, 1);
 }
 
 * {
@@ -74,6 +75,16 @@ select {
   overflow: hidden;
 }
 
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 18%, rgba(255, 255, 255, 0.06) 34%, transparent 52%);
+  transform: translateX(-120%);
+  animation: topbarSheen 7.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
 .topbar::after {
   content: "";
   position: absolute;
@@ -121,6 +132,11 @@ select {
 .tool-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
+  transition: background var(--ease-fast);
+}
+
+.tool-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .group-block {
@@ -190,11 +206,37 @@ select {
   padding: 6px 6px 6px 10px;
   transform: translateY(0) scale(1);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   transition:
     transform var(--ease-fast),
     border-color var(--ease-fast),
     box-shadow var(--ease-fast),
-    background var(--ease-fast);
+    background var(--ease-fast),
+    filter var(--ease-fast);
+}
+
+.tool-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 38%, transparent 68%, rgba(45, 140, 255, 0.08));
+  opacity: 0;
+  transition: opacity var(--ease-soft);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tool-row::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .tool-row.dragging {
@@ -209,12 +251,14 @@ select {
   left: -9999px;
   pointer-events: none;
   z-index: 9999;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.32));
 }
 
 .drag-ghost-stack {
   position: relative;
   width: 100%;
   height: 100%;
+  animation: ghostFloat 2.1s ease-in-out infinite;
 }
 
 .drag-ghost-card {
@@ -245,6 +289,7 @@ select {
 .drag-ghost-card.front {
   border-color: var(--accent);
   transform: translate(0, 0) rotate(1deg);
+  background: linear-gradient(180deg, #3a3a3a, #2b2b2b);
 }
 
 .drag-ghost-title {
@@ -263,6 +308,11 @@ select {
   box-shadow:
     inset 0 0 0 1px rgba(45, 140, 255, 0.18),
     0 7px 16px rgba(0, 0, 0, 0.14);
+  animation: activeRowPulse 2.8s ease-in-out infinite;
+}
+
+.tool-row.active::before {
+  opacity: 1;
 }
 
 .tool-row:hover {
@@ -270,6 +320,11 @@ select {
   border-color: var(--line-2);
   box-shadow: var(--shadow);
   background: linear-gradient(180deg, #343434, #2a2a2a);
+  filter: brightness(1.02);
+}
+
+.tool-row:hover::before {
+  opacity: 1;
 }
 
 .tool-row.active:hover {
@@ -278,7 +333,8 @@ select {
 }
 
 .tool-row.pressed {
-  transform: scale(0.992);
+  transform: scale(0.988);
+  transition-duration: 110ms;
 }
 
 .tool-row.drop-before {
@@ -312,6 +368,8 @@ select {
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
+  position: relative;
+  z-index: 1;
 }
 
 .tool-main strong {
@@ -327,6 +385,8 @@ select {
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
+  position: relative;
+  z-index: 1;
 }
 
 .tool-list.drag-active,
@@ -339,6 +399,8 @@ select {
   display: flex;
   align-items: center;
   gap: 10px;
+  position: relative;
+  z-index: 1;
 }
 
 .favorite-dropzone {
@@ -350,7 +412,8 @@ select {
   transition:
     background var(--ease-fast),
     border-color var(--ease-fast),
-    box-shadow var(--ease-fast);
+    box-shadow var(--ease-fast),
+    transform var(--ease-fast);
 }
 
 .favorite-dropzone.is-empty:not(.active) {
@@ -366,12 +429,14 @@ select {
   border-color: rgba(245, 200, 76, 0.28);
   background: rgba(245, 200, 76, 0.03);
   box-shadow: inset 0 0 0 1px rgba(245, 200, 76, 0.08);
+  animation: dropzoneBreathe 1.8s ease-in-out infinite;
 }
 
 .favorite-dropzone.active {
   background: rgba(245, 200, 76, 0.08);
   border-color: rgba(245, 200, 76, 0.45);
   box-shadow: inset 0 0 0 1px rgba(245, 200, 76, 0.12);
+  transform: scale(1.01);
 }
 
 .tool-indicator {
@@ -510,7 +575,8 @@ select {
     border-color var(--ease-fast),
     background var(--ease-fast),
     box-shadow var(--ease-fast),
-    filter var(--ease-fast);
+    filter var(--ease-fast),
+    background-position 420ms ease;
 }
 
 .ghost {
@@ -529,11 +595,14 @@ select {
   border-color: #2d8cff;
   font-weight: 500;
   box-shadow: 0 10px 20px rgba(45, 140, 255, 0.2);
+  background-size: 100% 140%;
+  background-position: 0 0;
 }
 
 .apply:hover {
   box-shadow: 0 14px 24px rgba(45, 140, 255, 0.24);
   filter: brightness(1.04);
+  background-position: 0 100%;
 }
 
 .overlay {
@@ -646,6 +715,8 @@ select {
 
 .field-section:hover {
   border-color: var(--line-2);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.14);
 }
 
 .field-section h3,
@@ -741,7 +812,7 @@ select {
 
 .shell-enter .topbar,
 .shell-enter .list-shell {
-  animation: fadeSlideIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeSlideIn 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .shell-enter .list-shell {
@@ -749,27 +820,90 @@ select {
 }
 
 .tool-row.row-enter {
-  animation: rowReveal 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: rowReveal 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px) scale(0.992);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 @keyframes rowReveal {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.988);
+    transform: translateY(10px) scale(0.982);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes activeRowPulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(45, 140, 255, 0.18),
+      0 7px 16px rgba(0, 0, 0, 0.14);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(45, 140, 255, 0.24),
+      0 10px 20px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba(45, 140, 255, 0.08);
+  }
+}
+
+@keyframes dropzoneBreathe {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(245, 200, 76, 0.08);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(245, 200, 76, 0.16),
+      0 0 0 1px rgba(245, 200, 76, 0.06);
+  }
+}
+
+@keyframes ghostFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes topbarSheen {
+  0%,
+  72%,
+  100% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  28% {
+    transform: translateX(120%);
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
