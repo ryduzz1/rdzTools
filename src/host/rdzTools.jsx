@@ -616,6 +616,208 @@ var rdzTools = (function () {
     return null;
   }
 
+  function getEaseDimensions(prop, keyIndex) {
+    try {
+      var outEase = prop.keyOutTemporalEase(keyIndex);
+      if (outEase && outEase.length) {
+        return outEase.length;
+      }
+    } catch (outEaseError) {}
+
+    try {
+      var inEase = prop.keyInTemporalEase(keyIndex);
+      if (inEase && inEase.length) {
+        return inEase.length;
+      }
+    } catch (inEaseError) {}
+
+    try {
+      var value = prop.value;
+      if (value instanceof Array) {
+        return Math.max(1, value.length);
+      }
+    } catch (valueError) {}
+    return 1;
+  }
+
+  function makeEaseArray(dimensions, influence, speeds) {
+    var eases = [];
+    for (var i = 0; i < dimensions; i += 1) {
+      var speed = speeds && speeds.length ? speeds[Math.min(i, speeds.length - 1)] : 0;
+      eases.push(new KeyframeEase(speed, influence));
+    }
+    return eases;
+  }
+
+  function valueToArray(value, dimensions) {
+    var values = [];
+    if (value instanceof Array) {
+      for (var i = 0; i < dimensions; i += 1) {
+        values.push(Number(value[Math.min(i, value.length - 1)]));
+      }
+      return values;
+    }
+
+    for (var index = 0; index < dimensions; index += 1) {
+      values.push(Number(value));
+    }
+    return values;
+  }
+
+  function getPairSpeeds(prop, firstKey, secondKey, dimensions, coords) {
+    var duration = Math.max(0.001, prop.keyTime(secondKey) - prop.keyTime(firstKey));
+    var firstValue = valueToArray(prop.keyValue(firstKey), dimensions);
+    var secondValue = valueToArray(prop.keyValue(secondKey), dimensions);
+    var outSpeeds = [];
+    var inSpeeds = [];
+    var outTime = Math.max(0.001, coords[0]);
+    var inTime = Math.max(0.001, 1 - coords[2]);
+    var outMultiplier = Math.max(0.001, coords[1] / outTime);
+    var inMultiplier = Math.max(0.001, (1 - coords[3]) / inTime);
+
+    if (dimensions === 1) {
+      var firstRaw = prop.keyValue(firstKey);
+      var secondRaw = prop.keyValue(secondKey);
+      var magnitude = 0;
+
+      if (firstRaw instanceof Array && secondRaw instanceof Array) {
+        for (var m = 0; m < Math.min(firstRaw.length, secondRaw.length); m += 1) {
+          var axisDelta = Number(secondRaw[m]) - Number(firstRaw[m]);
+          magnitude += axisDelta * axisDelta;
+        }
+        magnitude = Math.sqrt(magnitude);
+      } else {
+        magnitude = Number(secondRaw) - Number(firstRaw);
+      }
+
+      var speed = magnitude / duration;
+      return {
+        inSpeeds: [speed * inMultiplier],
+        outSpeeds: [speed * outMultiplier]
+      };
+    }
+
+    for (var i = 0; i < dimensions; i += 1) {
+      var delta = secondValue[i] - firstValue[i];
+      var baseSpeed = Math.abs(delta / duration);
+      outSpeeds.push(baseSpeed * outMultiplier);
+      inSpeeds.push(baseSpeed * inMultiplier);
+    }
+
+    return {
+      inSpeeds: inSpeeds,
+      outSpeeds: outSpeeds
+    };
+  }
+
+  function getGraphTargetKeys(prop) {
+    var keys = [];
+    try {
+      if (prop.selectedKeys && prop.selectedKeys.length > 0) {
+        for (var s = 0; s < prop.selectedKeys.length; s += 1) {
+          keys.push(prop.selectedKeys[s]);
+        }
+      }
+    } catch (selectedError) {}
+
+    keys.sort(function (a, b) { return a - b; });
+    return keys;
+  }
+
+  function normalizeGraphCoords(payload) {
+    var source = payload.coords && payload.coords.length === 4 ? payload.coords : [0, 0, 1, 1];
+    var coords = [];
+    for (var i = 0; i < 4; i += 1) {
+      var value = Number(source[i]);
+      if (isNaN(value)) {
+        value = i < 2 ? 0 : 1;
+      }
+      coords.push(Math.max(0, Math.min(1, value)));
+    }
+    return coords;
+  }
+
+  function isLinearGraph(coords) {
+    return Math.abs(coords[0]) < 0.001 &&
+      Math.abs(coords[1]) < 0.001 &&
+      Math.abs(coords[2] - 1) < 0.001 &&
+      Math.abs(coords[3] - 1) < 0.001;
+  }
+
+  function applyGraphEaseToProperty(prop, coords) {
+    if (!prop || !prop.numKeys || prop.numKeys < 2) {
+      return 0;
+    }
+
+    var keys = getGraphTargetKeys(prop);
+    if (keys.length < 2) {
+      return 0;
+    }
+
+    var appliedPairs = 0;
+    var outInfluence = Math.max(0.1, Math.min(99.9, coords[0] * 100));
+    var inInfluence = Math.max(0.1, Math.min(99.9, (1 - coords[2]) * 100));
+    var linear = isLinearGraph(coords);
+
+    for (var index = 0; index < keys.length - 1; index += 1) {
+      var firstKey = keys[index];
+      var secondKey = keys[index + 1];
+
+      try {
+        if (linear) {
+          prop.setInterpolationTypeAtKey(firstKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+          prop.setInterpolationTypeAtKey(secondKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+          appliedPairs += 1;
+          continue;
+        }
+        prop.setInterpolationTypeAtKey(firstKey, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+        prop.setInterpolationTypeAtKey(secondKey, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+      } catch (interpolationError) {}
+
+      try {
+        var dimensions = Math.max(getEaseDimensions(prop, firstKey), getEaseDimensions(prop, secondKey));
+        var speeds = getPairSpeeds(prop, firstKey, secondKey, dimensions, coords);
+        prop.setTemporalEaseAtKey(
+          firstKey,
+          makeEaseArray(dimensions, 33, speeds.outSpeeds),
+          makeEaseArray(dimensions, outInfluence, speeds.outSpeeds)
+        );
+        prop.setTemporalEaseAtKey(
+          secondKey,
+          makeEaseArray(dimensions, inInfluence, speeds.inSpeeds),
+          makeEaseArray(dimensions, 33, speeds.inSpeeds)
+        );
+        appliedPairs += 1;
+      } catch (easeError) {}
+    }
+
+    return appliedPairs;
+  }
+
+  function graphCoordsFromProperty(prop, firstKey, secondKey) {
+    try {
+      var outEase = prop.keyOutTemporalEase(firstKey);
+      var inEase = prop.keyInTemporalEase(secondKey);
+      var outInfluence = outEase && outEase.length ? outEase[0].influence : 0;
+      var inInfluence = inEase && inEase.length ? inEase[0].influence : 0;
+      var firstOutType = prop.keyOutInterpolationType(firstKey);
+      var secondInType = prop.keyInInterpolationType(secondKey);
+
+      if (firstOutType === KeyframeInterpolationType.LINEAR && secondInType === KeyframeInterpolationType.LINEAR) {
+        return [0, 0, 1, 1];
+      }
+
+      return [
+        Math.max(0, Math.min(1, outInfluence / 100)),
+        0,
+        Math.max(0, Math.min(1, 1 - (inInfluence / 100))),
+        1
+      ];
+    } catch (error) {
+      return null;
+    }
+  }
+
   function normalizeLayerSettings(comp, payload) {
     return {
       startSec: parseStartTime(comp, payload.startSec),
@@ -1384,6 +1586,73 @@ var rdzTools = (function () {
     }
   }
 
+  function applyGraphPreset(rawPayload) {
+    var comp = getActiveComp();
+    if (!comp) {
+      return "Error: No active comp.";
+    }
+
+    var coords = normalizeGraphCoords(parsePayload(rawPayload));
+    var selectedProperties = comp.selectedProperties || [];
+    var propertyCount = 0;
+    var pairCount = 0;
+
+    app.beginUndoGroup("rdzTools Graph");
+
+    try {
+      for (var i = 0; i < selectedProperties.length; i += 1) {
+        var prop = selectedProperties[i];
+        if (!prop || !prop.numKeys || prop.numKeys < 2 || !prop.setTemporalEaseAtKey) {
+          continue;
+        }
+
+        var appliedPairs = applyGraphEaseToProperty(prop, coords);
+        if (appliedPairs > 0) {
+          propertyCount += 1;
+          pairCount += appliedPairs;
+        }
+      }
+
+      if (propertyCount === 0) {
+        return "Error: Select at least two keyframes on one animated property.";
+      }
+
+      return "OK: Applied graph to " + propertyCount + " propert" + (propertyCount === 1 ? "y" : "ies") + " across " + pairCount + " keyframe pair" + (pairCount === 1 ? "" : "s") + ".";
+    } catch (error) {
+      return "Error: " + error.message;
+    } finally {
+      app.endUndoGroup();
+    }
+  }
+
+  function readGraphPreset() {
+    var comp = getActiveComp();
+    if (!comp) {
+      return '{"ok":false,"message":"Error: No active comp."}';
+    }
+
+    var selectedProperties = comp.selectedProperties || [];
+
+    for (var i = 0; i < selectedProperties.length; i += 1) {
+      var prop = selectedProperties[i];
+      if (!prop || !prop.numKeys || prop.numKeys < 2) {
+        continue;
+      }
+
+      var keys = getGraphTargetKeys(prop);
+      if (keys.length < 2) {
+        continue;
+      }
+
+      var coords = graphCoordsFromProperty(prop, keys[0], keys[1]);
+      if (coords) {
+        return '{"ok":true,"coords":[' + coords.join(",") + '],"message":"OK: Read graph from selected keyframes."}';
+      }
+    }
+
+    return '{"ok":false,"message":"Error: Select exactly two or more keyframes on an animated property."}';
+  }
+
   function getSelectionSummary() {
     var comp = getActiveComp();
     if (!comp) {
@@ -1397,8 +1666,10 @@ var rdzTools = (function () {
   }
 
   return {
+    applyGraphPreset: applyGraphPreset,
     applyTool: applyTool,
     getSelectionSummary: getSelectionSummary,
-    ping: ping
+    ping: ping,
+    readGraphPreset: readGraphPreset
   };
 }());

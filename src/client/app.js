@@ -1,6 +1,7 @@
 const SETTINGS_KEY = "rdzTools.toolSettings.v1";
 const FAVORITES_KEY = "rdzTools.favorites.v1";
 const FAVORITES_HINT_KEY = "rdzTools.favoritesHintDismissed.v1";
+const GRAPH_KEY = "rdzTools.graph.v1";
 const tabDefinitions = [
   { id: "graphs", label: "Graphs" },
   { id: "presets", label: "Presets" },
@@ -578,9 +579,12 @@ const compactToolButtons = [
   { id: "reverseLayers", label: "REV" },
   { id: "clearExpressions", label: "CLR" }
 ];
+const graphBounds = { x: 14, y: 10, width: 340, height: 276 };
 const bridge = getBridge();
 
 let activeToolId = tools[0].id;
+let graphCoords = loadGraphCoords();
+let draggedGraphHandle = null;
 let editingToolId = null;
 let savedSettings = loadSavedSettings();
 let favoriteToolIds = loadFavoriteToolIds();
@@ -627,6 +631,12 @@ function getBridge() {
       if (script.includes("applyTool")) {
         return "OK: Mock mode applied tool.";
       }
+      if (script.includes("applyGraphPreset")) {
+        return "OK: Mock mode applied graph.";
+      }
+      if (script.includes("readGraphPreset")) {
+        return JSON.stringify({ ok: true, coords: [0, 0, 1, 1], message: "OK: Mock mode read graph." });
+      }
       return "Mock mode.";
     }
   };
@@ -660,6 +670,25 @@ function loadFavoriteToolIds() {
 
 function persistFavoriteToolIds() {
   window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoriteToolIds));
+}
+
+function loadGraphCoords() {
+  try {
+    const raw = window.localStorage.getItem(GRAPH_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length === 4) {
+      return parsed.map((coord, index) => {
+        const fallback = index < 2 ? 0 : 1;
+        const value = Number(coord);
+        return isNaN(value) ? fallback : Math.max(0, Math.min(1, value));
+      });
+    }
+  } catch (error) {}
+  return [0, 0, 1, 1];
+}
+
+function persistGraphCoords() {
+  window.localStorage.setItem(GRAPH_KEY, JSON.stringify(graphCoords));
 }
 
 function loadFavoritesHintDismissed() {
@@ -925,6 +954,138 @@ function renderToolsPanel() {
   `;
 }
 
+function clampGraphCoord(value) {
+  if (isNaN(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+function formatGraphCoord(value) {
+  return clampGraphCoord(value).toFixed(2);
+}
+
+function getGraphPoint(handleIndex) {
+  const pointIndex = handleIndex === 1 ? 0 : 2;
+  return {
+    x: graphBounds.x + graphCoords[pointIndex] * graphBounds.width,
+    y: graphBounds.y + (1 - graphCoords[pointIndex + 1]) * graphBounds.height
+  };
+}
+
+function getGraphAnchor(anchorIndex) {
+  if (anchorIndex === 0) {
+    return { x: graphBounds.x, y: graphBounds.y + graphBounds.height };
+  }
+  return { x: graphBounds.x + graphBounds.width, y: graphBounds.y };
+}
+
+function graphPathData() {
+  const start = getGraphAnchor(0);
+  const end = getGraphAnchor(1);
+  const first = getGraphPoint(1);
+  const second = getGraphPoint(2);
+  return `M ${start.x} ${start.y} C ${first.x} ${first.y} ${second.x} ${second.y} ${end.x} ${end.y}`;
+}
+
+function graphCoordString() {
+  return graphCoords.map(formatGraphCoord).join(", ");
+}
+
+function syncGraphUi() {
+  const first = getGraphPoint(1);
+  const second = getGraphPoint(2);
+  const start = getGraphAnchor(0);
+  const end = getGraphAnchor(1);
+  const curve = toolList.querySelector("[data-graph-curve]");
+  const firstLine = toolList.querySelector('[data-graph-handle-line="1"]');
+  const secondLine = toolList.querySelector('[data-graph-handle-line="2"]');
+  const firstDot = toolList.querySelector('[data-graph-handle="1"]');
+  const secondDot = toolList.querySelector('[data-graph-handle="2"]');
+
+  if (curve) {
+    curve.setAttribute("d", graphPathData());
+  }
+  if (firstLine) {
+    firstLine.setAttribute("x1", start.x);
+    firstLine.setAttribute("y1", start.y);
+    firstLine.setAttribute("x2", first.x);
+    firstLine.setAttribute("y2", first.y);
+  }
+  if (secondLine) {
+    secondLine.setAttribute("x1", end.x);
+    secondLine.setAttribute("y1", end.y);
+    secondLine.setAttribute("x2", second.x);
+    secondLine.setAttribute("y2", second.y);
+  }
+  if (firstDot) {
+    firstDot.setAttribute("cx", first.x);
+    firstDot.setAttribute("cy", first.y);
+  }
+  if (secondDot) {
+    secondDot.setAttribute("cx", second.x);
+    secondDot.setAttribute("cy", second.y);
+  }
+  toolList.querySelectorAll("[data-graph-coordinate]").forEach((input) => {
+    input.value = formatGraphCoord(graphCoords[Number(input.dataset.graphCoordinate)]);
+  });
+  persistGraphCoords();
+}
+
+function renderGraphPanel() {
+  const first = getGraphPoint(1);
+  const second = getGraphPoint(2);
+  const start = getGraphAnchor(0);
+  const end = getGraphAnchor(1);
+  return `
+    <section class="graphs-panel">
+      <div class="graph-stage" aria-label="Editable graph">
+        <svg class="graph-canvas" viewBox="0 0 368 300" role="img" aria-label="Editable cubic bezier curve">
+          <defs>
+            <filter id="graphGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <g class="graph-grid">
+            <line x1="14" y1="78" x2="354" y2="78" />
+            <line x1="14" y1="142" x2="354" y2="142" />
+            <line x1="14" y1="206" x2="354" y2="206" />
+            <line x1="82" y1="10" x2="82" y2="286" />
+            <line x1="150" y1="10" x2="150" y2="286" />
+            <line x1="218" y1="10" x2="218" y2="286" />
+            <line x1="286" y1="10" x2="286" y2="286" />
+          </g>
+          <path class="graph-axis graph-axis-left" d="M 14 10 L 14 286" />
+          <path class="graph-axis graph-axis-bottom" d="M 14 286 L 354 286" />
+          <line class="graph-handle-line" data-graph-handle-line="1" x1="${start.x}" y1="${start.y}" x2="${first.x}" y2="${first.y}" />
+          <line class="graph-handle-line" data-graph-handle-line="2" x1="${end.x}" y1="${end.y}" x2="${second.x}" y2="${second.y}" />
+          <path class="graph-curve" data-graph-curve="true" d="${graphPathData()}" />
+          <circle class="graph-anchor-dot" cx="${start.x}" cy="${start.y}" r="4" />
+          <circle class="graph-anchor-dot" cx="${end.x}" cy="${end.y}" r="4" />
+          <circle class="graph-handle-dot" data-graph-handle="1" cx="${first.x}" cy="${first.y}" r="7" />
+          <circle class="graph-handle-dot" data-graph-handle="2" cx="${second.x}" cy="${second.y}" r="7" />
+        </svg>
+      </div>
+      <div class="graph-coordinate-panel">
+        <div class="graph-coordinate-grid" aria-label="Graph coordinates">
+          ${graphCoords
+            .map((coord, index) => `<input class="graph-coordinate-input" data-graph-coordinate="${index}" aria-label="Coordinate ${index + 1}" value="${formatGraphCoord(coord)}" inputmode="decimal" />`)
+            .join("")}
+        </div>
+      </div>
+      <div class="graph-action-row">
+        <button class="graph-secondary-button" data-graph-read="true">Read</button>
+        <button class="graph-secondary-button" data-graph-reset="true">Reset</button>
+        <button class="graph-apply-button" data-graph-apply="true">APPLY</button>
+      </div>
+    </section>
+  `;
+}
+
 function setStatus(message, tone = "normal") {
   return { message: message, tone: tone };
 }
@@ -936,13 +1097,7 @@ function escapeString(value) {
 function renderToolList() {
   const visibleTools = getVisibleToolsForTab(activeTabId);
   if (activeTabId === "graphs") {
-    toolList.innerHTML = `
-      <section class="empty-panel">
-        <div class="empty-kicker">Graphs</div>
-        <h2>Graph tools are coming next.</h2>
-        <p>This tab is reserved for curve helpers, graph shaping, and timing tools.</p>
-      </section>
-    `;
+    toolList.innerHTML = renderGraphPanel();
     hasRenderedListOnce = true;
     return;
   }
@@ -1448,7 +1603,58 @@ async function applyToolById(toolId) {
   await refreshSelection();
 }
 
-document.getElementById("refreshSelection").addEventListener("click", refreshSelection);
+async function applyActiveGraph() {
+  const payload = { coords: graphCoords };
+  const payloadString = escapeString(JSON.stringify(payload));
+  const result = await bridge.eval(`rdzTools.applyGraphPreset("${payloadString}")`);
+  const ok = typeof result === "string" && result.indexOf("OK:") === 0;
+  setStatus(result, ok ? "success" : "error");
+  await refreshSelection();
+}
+
+async function readActiveGraph() {
+  const result = await bridge.eval("rdzTools.readGraphPreset()");
+  try {
+    const parsed = JSON.parse(result);
+    if (parsed.ok && Array.isArray(parsed.coords) && parsed.coords.length === 4) {
+      graphCoords = parsed.coords.map((coord) => clampGraphCoord(Number(coord)));
+      syncGraphUi();
+      setStatus(parsed.message || "OK: Read selected keyframe graph.", "success");
+      return;
+    }
+    setStatus(parsed.message || "Error: Could not read selected keyframes.", "error");
+  } catch (error) {
+    setStatus(result || "Error: Could not read selected keyframes.", "error");
+  }
+}
+
+function resetGraph() {
+  graphCoords = [0, 0, 1, 1];
+  persistGraphCoords();
+  renderToolList();
+}
+
+function getGraphSvgPoint(event) {
+  const svg = toolList.querySelector(".graph-canvas");
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * 368,
+    y: ((event.clientY - rect.top) / rect.height) * 300
+  };
+}
+
+function updateGraphHandleFromEvent(event) {
+  if (!draggedGraphHandle) {
+    return;
+  }
+
+  const point = getGraphSvgPoint(event);
+  const coordIndex = draggedGraphHandle === 1 ? 0 : 2;
+  graphCoords[coordIndex] = clampGraphCoord((point.x - graphBounds.x) / graphBounds.width);
+  graphCoords[coordIndex + 1] = clampGraphCoord(1 - ((point.y - graphBounds.y) / graphBounds.height));
+  syncGraphUi();
+}
+
 applyButton.addEventListener("click", applyActiveTool);
 document.getElementById("closeSettings").addEventListener("click", closeSettings);
 document.getElementById("saveSettings").addEventListener("click", saveSettingsForEditingTool);
@@ -1463,6 +1669,14 @@ tabBar.addEventListener("click", (event) => {
 });
 
 toolList.addEventListener("contextmenu", (event) => {
+  const presetRow = event.target.closest(".tool-row[data-tool-id]");
+  if (presetRow) {
+    event.preventDefault();
+    event.stopPropagation();
+    openSettings(presetRow.dataset.toolId);
+    return;
+  }
+
   const commandButton = event.target.closest("[data-run-tool]");
   if (!commandButton) {
     return;
@@ -1479,6 +1693,45 @@ toolList.addEventListener("mouseleave", (event) => {
   }
 }, true);
 
+toolList.addEventListener("mousedown", (event) => {
+  const handle = event.target.closest("[data-graph-handle]");
+  if (!handle) {
+    return;
+  }
+
+  draggedGraphHandle = Number(handle.dataset.graphHandle);
+  toolList.classList.add("graph-dragging");
+  event.preventDefault();
+  updateGraphHandleFromEvent(event);
+});
+
+document.addEventListener("mousemove", (event) => {
+  if (!draggedGraphHandle) {
+    return;
+  }
+  event.preventDefault();
+  updateGraphHandleFromEvent(event);
+});
+
+document.addEventListener("mouseup", () => {
+  if (!draggedGraphHandle) {
+    return;
+  }
+  draggedGraphHandle = null;
+  toolList.classList.remove("graph-dragging");
+});
+
+toolList.addEventListener("input", (event) => {
+  const input = event.target.closest("[data-graph-coordinate]");
+  if (!input) {
+    return;
+  }
+
+  const index = Number(input.dataset.graphCoordinate);
+  graphCoords[index] = clampGraphCoord(Number(input.value));
+  syncGraphUi();
+});
+
 toolList.addEventListener("click", (event) => {
   if (suppressNextClick) {
     suppressNextClick = false;
@@ -1488,6 +1741,21 @@ toolList.addEventListener("click", (event) => {
   }
 
   hideToolHelp();
+
+  if (event.target.closest("[data-graph-read]")) {
+    readActiveGraph();
+    return;
+  }
+
+  if (event.target.closest("[data-graph-reset]")) {
+    resetGraph();
+    return;
+  }
+
+  if (event.target.closest("[data-graph-apply]")) {
+    applyActiveGraph();
+    return;
+  }
 
   const dismissHintButton = event.target.closest("[data-dismiss-favorites-hint]");
   if (dismissHintButton) {

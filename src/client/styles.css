@@ -621,6 +621,190 @@ select {
   text-transform: uppercase;
 }
 
+.graphs-panel {
+  display: grid;
+  grid-template-rows: minmax(220px, 1fr) auto auto;
+  gap: 8px;
+  min-height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.graph-stage {
+  min-height: 220px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 22% 12%, rgba(255, 255, 255, 0.035), transparent 36%),
+    linear-gradient(180deg, #2b2b2b, #252525);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+}
+
+.graph-grid line {
+  stroke: #404040;
+  stroke-width: 1.5;
+}
+
+.graph-axis {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.7;
+}
+
+.graph-handle-line {
+  fill: none;
+  stroke: var(--favorite);
+  stroke-linecap: round;
+  stroke-width: 2.4;
+  filter: drop-shadow(0 1px 2px rgba(245, 200, 76, 0.25));
+}
+
+.graph-curve {
+  fill: none;
+  stroke: #eeeeee;
+  stroke-linecap: round;
+  stroke-width: 3.4;
+  filter: url("#graphGlow") drop-shadow(0 0 2px rgba(255, 255, 255, 0.28));
+}
+
+.graph-handle-dot {
+  fill: var(--favorite);
+  stroke: rgba(255, 220, 110, 0.7);
+  stroke-width: 1.5;
+  cursor: grab;
+  transition:
+    filter var(--ease-fast),
+    r var(--ease-fast);
+}
+
+.graph-handle-dot:hover {
+  filter: drop-shadow(0 0 6px rgba(245, 200, 76, 0.5));
+}
+
+.graph-dragging .graph-handle-dot {
+  cursor: grabbing;
+}
+
+.graph-anchor-dot {
+  fill: var(--accent);
+}
+
+.graph-coordinate-panel {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel-3));
+}
+
+.graph-coordinate-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.graph-coordinate-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #202020;
+  color: var(--text);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+  transition:
+    border-color var(--ease-fast),
+    box-shadow var(--ease-fast),
+    background var(--ease-fast);
+}
+
+.graph-coordinate-input:focus {
+  border-color: var(--accent);
+  background: #242424;
+  box-shadow: 0 0 0 2px rgba(45, 140, 255, 0.14);
+}
+
+.graph-action-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.48fr) minmax(64px, 0.48fr) minmax(160px, 1.4fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-secondary-button,
+.graph-apply-button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform var(--ease-fast),
+    background var(--ease-fast),
+    border-color var(--ease-fast),
+    color var(--ease-fast),
+    filter var(--ease-fast);
+}
+
+.graph-secondary-button {
+  background: linear-gradient(180deg, #303030, #282828);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.graph-apply-button {
+  border-color: rgba(45, 140, 255, 0.5);
+  background: linear-gradient(180deg, #5c9cef, #4788df);
+  color: #f1f1f1;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.graph-secondary-button:hover,
+.graph-apply-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-2);
+  filter: brightness(1.06);
+}
+
+.graph-secondary-button:active,
+.graph-apply-button:active {
+  transform: scale(0.985);
+}
+
+@media (max-width: 430px) {
+  .graphs-panel {
+    grid-template-rows: minmax(190px, 1fr) auto auto;
+  }
+
+  .graph-stage,
+  .graph-canvas {
+    min-height: 190px;
+  }
+
+  .graph-action-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .graph-apply-button {
+    grid-column: 1 / -1;
+  }
+}
+
 .tool-help {
   position: fixed;
   z-index: 40;
