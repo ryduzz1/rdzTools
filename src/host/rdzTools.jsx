@@ -589,6 +589,150 @@ var rdzTools = (function () {
     comp.motionBlurAdaptiveSampleLimit = 16;
   }
 
+  function applyWordOutAnimation(layer, comp, settings, options) {
+    removeOldTextAnimators(layer);
+    configureTextAnimatorWordGrouping(layer);
+
+    var textProps = layer.property("ADBE Text Properties");
+    var animators = textProps.property("ADBE Text Animators");
+    var srcText = textProps.property("ADBE Text Document").value.text;
+    var words = srcText.match(/\S+/g);
+    var numWords = words ? words.length : 1;
+    var endX = options.offsetX || 0;
+    var endY = options.offsetY || 0;
+
+    for (var i = 0; i < numWords; i += 1) {
+      var animator = animators.addProperty("ADBE Text Animator");
+      animator.name = "TA_Word_Out_" + (i + 1);
+
+      var animProps = animator.property("ADBE Text Animator Properties");
+      var posProp = addAnimatorProperty(animProps, "ADBE Text Position 3D", "Position");
+      if (!posProp) {
+        posProp = addAnimatorProperty(animProps, "ADBE Text Position", "Position");
+      }
+      var opacityProp = addAnimatorProperty(animProps, "ADBE Text Opacity", "Opacity");
+      var blurProp = settings.blurEnabled ? addAnimatorProperty(animProps, "ADBE Text Blur", "Blur") : null;
+      var scaleProp = options.scaleEnd !== null && options.scaleEnd !== undefined ? addAnimatorProperty(animProps, "ADBE Text Scale 3D", "Scale") : null;
+      var rotationProp = options.rotationEnd ? addAnimatorProperty(animProps, "ADBE Text Rotation", "Rotation") : null;
+
+      var selectors = animator.property("ADBE Text Selectors");
+      var rangeSelector = selectors.addProperty("ADBE Text Selector");
+      if (!rangeSelector) {
+        rangeSelector = selectors.addProperty("Range Selector");
+      }
+      rangeSelector.name = "Word " + (i + 1);
+      setSelectorToWord(rangeSelector, i, numWords);
+
+      var t0 = settings.startSec + (i * settings.stagger);
+      var t1 = t0 + settings.wordDur;
+
+      if (posProp && (endX !== 0 || endY !== 0)) {
+        try {
+          key2(posProp, t0, [0, 0, 0], t1, [endX, endY, 0], setSnappyEase);
+        } catch (position3dError) {
+          key2(posProp, t0, [0, 0], t1, [endX, endY], setSnappyEase);
+        }
+      }
+      if (opacityProp) {
+        key2(opacityProp, t0, 100, t1, 0, setSnappyEase);
+      }
+      if (settings.blurEnabled && blurProp) {
+        try {
+          key2(blurProp, t0, [0, 0], t1, [settings.blurAmt, settings.blurAmt], setSnappyEase);
+        } catch (blur2dError) {
+          try { key2(blurProp, t0, 0, t1, settings.blurAmt, setSnappyEase); } catch (blur1dError) {}
+        }
+      }
+      if (scaleProp) {
+        try {
+          key2(scaleProp, t0, [100, 100, 100], t1, [options.scaleEnd, options.scaleEnd, 100], setSnappyEase);
+        } catch (scale3dError) {
+          key2(scaleProp, t0, [100, 100], t1, [options.scaleEnd, options.scaleEnd], setSnappyEase);
+        }
+      }
+      if (rotationProp) {
+        key2(rotationProp, t0, 0, t1, options.rotationEnd, setSnappyEase);
+      }
+    }
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
+    comp.motionBlurAdaptiveSampleLimit = 16;
+  }
+
+  function applyCharacterOutAnimation(layer, comp, settings, options) {
+    removeOldTextAnimators(layer);
+    configureTextAnimatorCharacterGrouping(layer);
+
+    var textProps = layer.property("ADBE Text Properties");
+    var animators = textProps.property("ADBE Text Animators");
+    var srcText = textProps.property("ADBE Text Document").value.text;
+    var totalChars = Math.max(1, srcText.length);
+
+    for (var i = 0; i < totalChars; i += 1) {
+      var animator = animators.addProperty("ADBE Text Animator");
+      animator.name = "TA_Char_Out_" + (i + 1);
+
+      var animProps = animator.property("ADBE Text Animator Properties");
+      var opacityProp = addAnimatorProperty(animProps, "ADBE Text Opacity", "Opacity");
+      var scaleProp = options.scaleEnd !== null && options.scaleEnd !== undefined ? addAnimatorProperty(animProps, "ADBE Text Scale 3D", "Scale") : null;
+      var posProp = options.scatter ? addAnimatorProperty(animProps, "ADBE Text Position 3D", "Position") : null;
+      if (options.scatter && !posProp) {
+        posProp = addAnimatorProperty(animProps, "ADBE Text Position", "Position");
+      }
+      var rotationProp = options.rotationEnd ? addAnimatorProperty(animProps, "ADBE Text Rotation", "Rotation") : null;
+      var blurProp = settings.blurEnabled ? addAnimatorProperty(animProps, "ADBE Text Blur", "Blur") : null;
+
+      var selectors = animator.property("ADBE Text Selectors");
+      var rangeSelector = selectors.addProperty("ADBE Text Selector");
+      if (!rangeSelector) {
+        rangeSelector = selectors.addProperty("Range Selector");
+      }
+      rangeSelector.name = "Char " + (i + 1);
+      setSelectorToCharacter(rangeSelector, i, totalChars);
+
+      var t0 = settings.startSec + (i * settings.stagger);
+      var t1 = t0 + settings.wordDur;
+      var direction = i % 2 === 0 ? 1 : -1;
+      var vertical = i % 3 === 0 ? -0.65 : 0.65;
+      var endX = direction * settings.distance;
+      var endY = vertical * settings.distance;
+      var endRotation = direction * (options.rotationEnd || 0);
+
+      if (opacityProp) {
+        key2(opacityProp, t0, 100, t1, 0, setSnappyEase);
+      }
+      if (scaleProp) {
+        try {
+          key2(scaleProp, t0, [100, 100, 100], t1, [options.scaleEnd, options.scaleEnd, 100], setSnappyEase);
+        } catch (scale3dError) {
+          key2(scaleProp, t0, [100, 100], t1, [options.scaleEnd, options.scaleEnd], setSnappyEase);
+        }
+      }
+      if (posProp) {
+        try {
+          key2(posProp, t0, [0, 0, 0], t1, [endX, endY, 0], setSnappyEase);
+        } catch (position3dError) {
+          key2(posProp, t0, [0, 0], t1, [endX, endY], setSnappyEase);
+        }
+      }
+      if (rotationProp) {
+        key2(rotationProp, t0, 0, t1, endRotation, setSnappyEase);
+      }
+      if (settings.blurEnabled && blurProp) {
+        try {
+          key2(blurProp, t0, [0, 0], t1, [settings.blurAmt, settings.blurAmt], setSnappyEase);
+        } catch (blur2dError) {
+          try { key2(blurProp, t0, 0, t1, settings.blurAmt, setSnappyEase); } catch (blur1dError) {}
+        }
+      }
+    }
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
+    comp.motionBlurAdaptiveSampleLimit = 16;
+  }
+
   function getTransformProp(layer, targetName) {
     var transform = layer.property("ADBE Transform Group");
     if (!transform) {
@@ -1561,13 +1705,25 @@ var rdzTools = (function () {
     app.beginUndoGroup("rdzTools " + toolId);
 
     try {
-      if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn" || toolId === "charBounceIn") {
+      if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn" || toolId === "charBounceIn" || toolId === "wordBlurOutRight" || toolId === "wordBlurOutLeft" || toolId === "wordBlurOutUp" || toolId === "wordBlurOutDown" || toolId === "wordRotateOut" || toolId === "charShrinkOut" || toolId === "charScatterOut") {
         var textLayer = getTextLayer(comp);
         if (!textLayer) {
           throw new Error("No text layer found in comp.");
         }
 
         var wordSettings = normalizeWordSettings(comp, payload);
+        if (toolId === "charShrinkOut") {
+          wordSettings.scaleStart = isNaN(payload.scaleStart) ? 8 : Number(payload.scaleStart);
+          applyCharacterOutAnimation(textLayer, comp, wordSettings, { scaleEnd: wordSettings.scaleStart, scatter: false });
+          return "OK: Applied " + toolId + " to " + textLayer.name + ".";
+        }
+
+        if (toolId === "charScatterOut") {
+          wordSettings.rotationStart = isNaN(payload.rotationStart) ? 35 : Number(payload.rotationStart);
+          applyCharacterOutAnimation(textLayer, comp, wordSettings, { scaleEnd: null, scatter: true, rotationEnd: wordSettings.rotationStart });
+          return "OK: Applied " + toolId + " to " + textLayer.name + ".";
+        }
+
         if (toolId === "charBounceIn") {
           wordSettings.scaleStart = isNaN(payload.scaleStart) ? 18 : Number(payload.scaleStart);
           wordSettings.scaleOvershoot = isNaN(payload.scaleOvershoot) ? 148 : Number(payload.scaleOvershoot);
@@ -1584,6 +1740,20 @@ var rdzTools = (function () {
         if (toolId === "wordRotateIn") {
           wordSettings.rotationStart = isNaN(payload.rotationStart) ? -26 : Number(payload.rotationStart);
           applyWordRotateBounceAnimation(textLayer, comp, wordSettings);
+          return "OK: Applied " + toolId + " to " + textLayer.name + ".";
+        }
+
+        if (toolId === "wordBlurOutRight") { options = { offsetX: wordSettings.distance, offsetY: 0 }; }
+        if (toolId === "wordBlurOutLeft") { options = { offsetX: -wordSettings.distance, offsetY: 0 }; }
+        if (toolId === "wordBlurOutUp") { options = { offsetX: 0, offsetY: -wordSettings.distance }; }
+        if (toolId === "wordBlurOutDown") { options = { offsetX: 0, offsetY: wordSettings.distance }; }
+        if (toolId === "wordRotateOut") {
+          wordSettings.rotationStart = isNaN(payload.rotationStart) ? 24 : Number(payload.rotationStart);
+          applyWordOutAnimation(textLayer, comp, wordSettings, { offsetX: wordSettings.distance, offsetY: 0, rotationEnd: wordSettings.rotationStart });
+          return "OK: Applied " + toolId + " to " + textLayer.name + ".";
+        }
+        if (toolId === "wordBlurOutRight" || toolId === "wordBlurOutLeft" || toolId === "wordBlurOutUp" || toolId === "wordBlurOutDown") {
+          applyWordOutAnimation(textLayer, comp, wordSettings, options);
           return "OK: Applied " + toolId + " to " + textLayer.name + ".";
         }
 

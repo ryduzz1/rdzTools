@@ -166,6 +166,188 @@ const tools = [
     ]
   },
   {
+    id: "wordBlurOutRight",
+    group: "Text Out",
+    title: "Word Blur Out To Right",
+    blurb: "Each word slides right, fades out, and picks up blur.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Control how long each word exits and how far apart the words fire.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42", hint: "Snappy around 0.2, smoother around 0.5." },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Set the exit travel distance and ending blur amount.",
+        fields: [
+          { id: "distance", label: "Slide distance px (positive = to right)", type: "number", defaultValue: "46" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "10", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "wordBlurOutLeft",
+    group: "Text Out",
+    title: "Word Blur Out To Left",
+    blurb: "Each word slides left, fades out, and picks up blur.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Control how long each word exits and how far apart the words fire.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Set the exit travel distance and ending blur amount.",
+        fields: [
+          { id: "distance", label: "Slide distance px (positive = to left)", type: "number", defaultValue: "46" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "10", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "wordBlurOutUp",
+    group: "Text Out",
+    title: "Word Blur Out Up",
+    blurb: "Each word lifts away with opacity and blur.",
+    sections: [
+      {
+        title: "Timing",
+        description: "A quick vertical word exit for titles and callouts.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Set how far the words travel upward and how much blur they gain.",
+        fields: [
+          { id: "distance", label: "Slide distance px (positive = up)", type: "number", defaultValue: "42" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "9", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "wordBlurOutDown",
+    group: "Text Out",
+    title: "Word Blur Out Down",
+    blurb: "Each word drops away with opacity and blur.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Use this when type should fall out cleanly.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Set how far the words travel downward and how much blur they gain.",
+        fields: [
+          { id: "distance", label: "Slide distance px (positive = down)", type: "number", defaultValue: "42" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "9", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "wordRotateOut",
+    group: "Text Out",
+    title: "Word Rotate Out",
+    blurb: "Each word rotates and slides away while fading out.",
+    sections: [
+      {
+        title: "Timing",
+        description: "A more stylized word exit with rotation and optional blur.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.38" },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.1" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Set exit offset, rotation, and blur.",
+        fields: [
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "34" },
+          { id: "rotationStart", label: "Ending rotation (deg)", type: "number", defaultValue: "24" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "6", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "charShrinkOut",
+    group: "Text Out",
+    title: "Character Shrink Out",
+    blurb: "Each character fades and scales down in sequence.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Control the per-character exit speed.",
+        fields: [
+          { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.28" },
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.025" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Scale",
+        description: "Set the final character scale.",
+        fields: [
+          { id: "scaleStart", label: "Ending scale (%)", type: "number", defaultValue: "8" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "charScatterOut",
+    group: "Text Out",
+    title: "Character Scatter Out",
+    blurb: "Characters scatter in alternating directions with fade, blur, and rotation.",
+    sections: [
+      {
+        title: "Timing",
+        description: "A punchier character exit for energetic type.",
+        fields: [
+          { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.34" },
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.02" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Scatter",
+        description: "Control the spread, spin, and blur.",
+        fields: [
+          { id: "distance", label: "Scatter distance px", type: "number", defaultValue: "55" },
+          { id: "rotationStart", label: "Rotation amount (deg)", type: "number", defaultValue: "35" },
+          { id: "blurEnabled", label: "Enable character blur", type: "checkbox", defaultValue: true },
+          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
     id: "layerScalePop",
     group: "Layer In",
     title: "Layer glitch scale",
@@ -699,7 +881,7 @@ function persistFavoritesHintDismissed() {
 
 function toolBelongsToTab(tool, tabId) {
   if (tabId === "presets") {
-    return tool.group === "Text In" || tool.group === "Layer In" || tool.group === "Looks";
+    return tool.group === "Text In" || tool.group === "Text Out" || tool.group === "Layer In" || tool.group === "Looks";
   }
   if (tabId === "tools") {
     return tool.group === "Rigging";
