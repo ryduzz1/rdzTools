@@ -925,7 +925,15 @@ var rdzTools = (function () {
 
   function saveCurrentFrame(comp) {
     var folder = Folder.desktop || Folder.myDocuments;
-    var file = new File(folder.fsName + "/rdzTools_" + comp.name.replace(/[\\\/:\*\?\"\<\>\|]/g, "_") + "_" + Math.round(comp.time * comp.frameRate) + ".png");
+    var defaultName = "rdzTools_" + comp.name.replace(/[\\\/:\*\?\"\<\>\|]/g, "_") + "_" + Math.round(comp.time * comp.frameRate) + ".png";
+    var defaultFile = new File(folder.fsName + "/" + defaultName);
+    var file = defaultFile.saveDlg("Save current frame as PNG", "PNG:*.png");
+    if (!file) {
+      return null;
+    }
+    if (!/\.png$/i.test(file.fsName)) {
+      file = new File(file.fsName + ".png");
+    }
     if (!comp.saveFrameToPng) {
       throw new Error("saveFrameToPng is not available in this After Effects version.");
     }
@@ -972,6 +980,58 @@ var rdzTools = (function () {
       cursor += duration;
     }
     return layers.length;
+  }
+
+  function duplicateSelectedLayers(comp) {
+    var layers = requireSelectedLayers(comp);
+    var duplicated = 0;
+    for (var i = layers.length - 1; i >= 0; i -= 1) {
+      layers[i].duplicate();
+      duplicated += 1;
+    }
+    return duplicated;
+  }
+
+  function splitSelectedLayers(comp) {
+    var layers = requireSelectedLayers(comp);
+    var split = 0;
+    for (var i = 0; i < layers.length; i += 1) {
+      var layer = layers[i];
+      if (comp.time <= layer.inPoint || comp.time >= layer.outPoint) {
+        continue;
+      }
+      var duplicate = layer.duplicate();
+      duplicate.inPoint = comp.time;
+      layer.outPoint = comp.time;
+      split += 1;
+    }
+    return split;
+  }
+
+  function reverseSelectedLayers(comp) {
+    var layers = requireSelectedLayers(comp);
+    for (var i = 0; i < layers.length; i += 1) {
+      layers[i].timeReversed = !layers[i].timeReversed;
+    }
+    return layers.length;
+  }
+
+  function clearTransformExpressions(comp) {
+    var layers = requireSelectedLayers(comp);
+    var targets = ["Position", "Scale", "Rotation", "Opacity", "Anchor Point"];
+    var cleared = 0;
+    for (var i = 0; i < layers.length; i += 1) {
+      for (var targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+        var prop = getTransformProp(layers[i], targets[targetIndex]);
+        if (!prop || !prop.canSetExpression || !prop.expressionEnabled) {
+          continue;
+        }
+        prop.expressionEnabled = false;
+        prop.expression = "";
+        cleared += 1;
+      }
+    }
+    return cleared;
   }
 
   function normalizeBouceSettings(payload) {
@@ -1255,6 +1315,9 @@ var rdzTools = (function () {
 
       if (toolId === "saveFrame") {
         var savedPath = saveCurrentFrame(comp);
+        if (!savedPath) {
+          return "OK: Save frame canceled.";
+        }
         return "OK: Saved frame to " + savedPath + ".";
       }
 
@@ -1285,6 +1348,26 @@ var rdzTools = (function () {
       if (toolId === "sequenceLayers") {
         var sequencedCount = sequenceSelectedLayers(comp);
         return "OK: Sequenced " + sequencedCount + " layer(s).";
+      }
+
+      if (toolId === "duplicateLayers") {
+        var duplicateCount = duplicateSelectedLayers(comp);
+        return "OK: Duplicated " + duplicateCount + " layer(s).";
+      }
+
+      if (toolId === "splitLayers") {
+        var splitCount = splitSelectedLayers(comp);
+        return "OK: Split " + splitCount + " layer(s).";
+      }
+
+      if (toolId === "reverseLayers") {
+        var reversedCount = reverseSelectedLayers(comp);
+        return "OK: Toggled time reverse on " + reversedCount + " layer(s).";
+      }
+
+      if (toolId === "clearExpressions") {
+        var clearedCount = clearTransformExpressions(comp);
+        return "OK: Cleared " + clearedCount + " transform expression(s).";
       }
 
       if (toolId === "enableMotionBlur") {

@@ -443,7 +443,7 @@ const tools = [
     id: "saveFrame",
     group: "Rigging",
     title: "Save Frame",
-    blurb: "Saves the current comp frame to the desktop as a PNG.",
+    blurb: "Prompts for a file path, then saves the current comp frame as a PNG.",
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
   },
   {
@@ -518,6 +518,34 @@ const tools = [
         fields: []
       }
     ]
+  },
+  {
+    id: "duplicateLayers",
+    group: "Rigging",
+    title: "Duplicate layers",
+    blurb: "Duplicates the selected layers in place.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "splitLayers",
+    group: "Rigging",
+    title: "Split layers",
+    blurb: "Splits selected layers at the current playhead time.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "reverseLayers",
+    group: "Rigging",
+    title: "Reverse layers",
+    blurb: "Enables time reverse on selected layers.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "clearExpressions",
+    group: "Rigging",
+    title: "Clear expressions",
+    blurb: "Disables expressions on common transform properties for selected layers.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
   }
 ];
 
@@ -541,19 +569,14 @@ const primaryToolButtons = [
 const compactToolButtons = [
   { id: "freezeFrame", label: "FRZ" },
   { id: "fitToComp", label: "FIT" },
-  { id: "lookSoftShadow", label: "DSH" },
-  { id: "centerAnchor", label: "ADJ" },
-  { id: "enableMotionBlur", label: "MIR" },
-  { id: "sequenceLayers", label: "SOL" },
-  { id: "lookLongShadow", label: "SHA" },
-  { id: "createControlNull", label: "NUL" },
   { id: "bouce", label: "BNC" },
-  { id: "charBounceIn", label: "TXT" },
-  { id: "lookLiquidGlass", label: "GLS" },
-  { id: "lookBevelLite", label: "BVL" },
-  { id: "layerBlurFadeIn", label: "BLR" },
-  { id: "centerInComp", label: "CTR" },
-  { id: "saveFrame", label: "PNG" }
+  { id: "createControlNull", label: "NUL" },
+  { id: "enableMotionBlur", label: "MBL" },
+  { id: "sequenceLayers", label: "SEQ" },
+  { id: "duplicateLayers", label: "DUP" },
+  { id: "splitLayers", label: "SPL" },
+  { id: "reverseLayers", label: "REV" },
+  { id: "clearExpressions", label: "CLR" }
 ];
 const bridge = getBridge();
 
@@ -570,6 +593,7 @@ let suppressNextClick = false;
 let hasRenderedListOnce = false;
 let favoritesHintDismissed = loadFavoritesHintDismissed();
 let activeTabId = "presets";
+let toolHelpCloseTimer = null;
 
 const toolList = document.getElementById("toolList");
 const fieldMount = document.getElementById("fieldMount");
@@ -580,6 +604,9 @@ const settingsOverlay = document.getElementById("settingsOverlay");
 const tabBar = document.getElementById("tabBar");
 const applyButton = document.getElementById("applyTool");
 const actionbar = document.getElementById("actionbar");
+const toolHelpPopup = document.getElementById("toolHelpPopup");
+const toolHelpTitle = document.getElementById("toolHelpTitle");
+const toolHelpCopy = document.getElementById("toolHelpCopy");
 
 function getBridge() {
   if (typeof window.__adobe_cep__ !== "undefined") {
@@ -871,7 +898,7 @@ function primaryCommandMarkup(entry) {
 function compactCommandMarkup(entry) {
   const tool = toolMap[entry.id];
   return `
-    <button class="compact-command" data-run-tool="${entry.id}" title="${tool.title}" aria-label="${tool.title}">
+    <button class="compact-command" data-run-tool="${entry.id}" aria-label="${tool.title}">
       ${entry.label}
     </button>
   `;
@@ -883,7 +910,7 @@ function renderToolsPanel() {
       <div class="tools-hero">
         <div class="anchor-pad" aria-label="Anchor point tools">
           ${anchorTools
-            .map(([toolId, position]) => `<button class="anchor-button anchor-${position}" data-run-tool="${toolId}" title="${toolMap[toolId].title}" aria-label="${toolMap[toolId].title}"><span></span></button>`)
+            .map(([toolId, position]) => `<button class="anchor-button anchor-${position}" data-run-tool="${toolId}" aria-label="${toolMap[toolId].title}"><span></span></button>`)
             .join("")}
         </div>
         <div class="prime-command-stack">
@@ -1270,6 +1297,39 @@ function closeSettings() {
   }, 280);
 }
 
+function hideToolHelp() {
+  if (toolHelpPopup.classList.contains("hidden") || toolHelpPopup.classList.contains("closing")) {
+    return;
+  }
+
+  toolHelpPopup.classList.add("closing");
+  window.clearTimeout(toolHelpCloseTimer);
+  toolHelpCloseTimer = window.setTimeout(() => {
+    toolHelpPopup.classList.add("hidden");
+    toolHelpPopup.classList.remove("closing");
+  }, 170);
+}
+
+function showToolHelp(toolId, clientX, clientY) {
+  const tool = toolMap[toolId];
+  if (!tool) {
+    return;
+  }
+
+  toolHelpTitle.textContent = tool.title;
+  toolHelpCopy.textContent = tool.blurb || "Runs this rdzTools command.";
+  window.clearTimeout(toolHelpCloseTimer);
+  toolHelpPopup.classList.remove("closing");
+  toolHelpPopup.classList.remove("hidden");
+
+  const margin = 8;
+  const rect = toolHelpPopup.getBoundingClientRect();
+  const left = Math.min(window.innerWidth - rect.width - margin, Math.max(margin, clientX + 10));
+  const top = Math.min(window.innerHeight - rect.height - margin, Math.max(margin, clientY + 10));
+  toolHelpPopup.style.left = `${left}px`;
+  toolHelpPopup.style.top = `${top}px`;
+}
+
 function formatRangeValue(field, value) {
   const numeric = Number(value);
   if (field.step && field.step < 1) {
@@ -1402,6 +1462,23 @@ tabBar.addEventListener("click", (event) => {
   setActiveTab(tabButton.dataset.tabId);
 });
 
+toolList.addEventListener("contextmenu", (event) => {
+  const commandButton = event.target.closest("[data-run-tool]");
+  if (!commandButton) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  showToolHelp(commandButton.dataset.runTool, event.clientX, event.clientY);
+});
+
+toolList.addEventListener("mouseleave", (event) => {
+  if (event.target.closest && event.target.closest("[data-run-tool]")) {
+    hideToolHelp();
+  }
+}, true);
+
 toolList.addEventListener("click", (event) => {
   if (suppressNextClick) {
     suppressNextClick = false;
@@ -1409,6 +1486,8 @@ toolList.addEventListener("click", (event) => {
     event.stopPropagation();
     return;
   }
+
+  hideToolHelp();
 
   const dismissHintButton = event.target.closest("[data-dismiss-favorites-hint]");
   if (dismissHintButton) {
@@ -1438,6 +1517,14 @@ toolList.addEventListener("click", (event) => {
     return;
   }
 });
+
+document.addEventListener("click", hideToolHelp);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideToolHelp();
+  }
+});
+toolList.addEventListener("scroll", hideToolHelp);
 
 function clearPressedRows() {
   document.querySelectorAll(".tool-row.pressed").forEach((row) => row.classList.remove("pressed"));
