@@ -1537,17 +1537,71 @@ var rdzTools = (function () {
     return 0;
   }
 
+  function measureTextRight(measureLayer, textValue, time) {
+    if (!textValue || !textValue.length) {
+      return 0;
+    }
+
+    var measureTextProps = measureLayer.property("ADBE Text Properties");
+    var measureSourceText = measureTextProps.property("ADBE Text Document");
+    setTextDocumentText(measureSourceText, normalizeSplitText(textValue));
+    try {
+      var rect = measureLayer.sourceRectAtTime(time, false);
+      return rect.left + rect.width;
+    } catch (rectError) {}
+    return measureTextWidth(measureLayer, textValue, time);
+  }
+
   function measureTextAdvance(measureLayer, textValue, time) {
     if (!textValue || !textValue.length) {
       return 0;
     }
     var sentinel = "|";
-    var sentinelWidth = measureTextWidth(measureLayer, sentinel, time);
-    var measured = measureTextWidth(measureLayer, textValue + sentinel, time) - sentinelWidth;
+    var sentinelRight = measureTextRight(measureLayer, sentinel, time);
+    var measured = measureTextRight(measureLayer, textValue + sentinel, time) - sentinelRight;
     if (measured > 0) {
       return measured;
     }
     return measureTextWidth(measureLayer, textValue, time);
+  }
+
+  function getTextPhysicsRect(layer, sourceRect, time) {
+    if (!layer || layer.matchName !== "ADBE Text Layer") {
+      return sourceRect;
+    }
+
+    var text = getLayerTextValue(layer);
+    if (!text || text.length <= 1) {
+      return sourceRect;
+    }
+
+    var measureLayer = null;
+    try {
+      measureLayer = layer.duplicate();
+      var opacity = getTransformProp(measureLayer, "Opacity");
+      if (opacity) {
+        try {
+          opacity.setValue(0);
+        } catch (opacityError) {}
+      }
+      var measuredWidth = measureTextAdvance(measureLayer, text, time);
+      if (measuredWidth > 0) {
+        return {
+          left: sourceRect.left,
+          top: sourceRect.top,
+          width: Math.min(sourceRect.width, measuredWidth),
+          height: sourceRect.height
+        };
+      }
+    } catch (measureError) {
+    } finally {
+      if (measureLayer) {
+        try {
+          measureLayer.remove();
+        } catch (removeMeasureError) {}
+      }
+    }
+    return sourceRect;
   }
 
   function setTransformValueAtCurrentState(prop, value, time) {
@@ -1652,10 +1706,7 @@ var rdzTools = (function () {
         var afterWidth = measureTextAdvance(measureLayer, text.substring(0, i + 1), time);
         var charAdvance = Math.max(3, afterWidth - beforeWidth);
         var charWidth = Math.max(4, charAdvance);
-        var localCenterX = fullRect.left + beforeWidth + charWidth / 2;
-        var localCenterY = fullRect.top + fullRect.height / 2;
 
-        var compCenter = layerPointToCompPoint(localCenterX, localCenterY, sourcePosition, sourceAnchor, sourceScale, sourceRotation);
         var newLayer = layer.duplicate();
         newLayer.name = layer.name + "_Char_" + (i + 1);
         var newTextProps = newLayer.property("ADBE Text Properties");
@@ -1666,6 +1717,9 @@ var rdzTools = (function () {
         var newAnchorProp = getTransformProp(newLayer, "Anchor Point");
         var newPositionProp = getTransformProp(newLayer, "Position");
         var newAnchor = [newRect.left + newRect.width / 2, newRect.top + newRect.height / 2];
+        var localCenterX = beforeWidth + newRect.left + newRect.width / 2;
+        var localCenterY = newRect.top + newRect.height / 2;
+        var compCenter = layerPointToCompPoint(localCenterX, localCenterY, sourcePosition, sourceAnchor, sourceScale, sourceRotation);
         var newPosition = [compCenter.x, compCenter.y];
         if (sourceAnchor.length > 2) {
           newAnchor.push(sourceAnchor[2]);
@@ -1824,7 +1878,7 @@ var rdzTools = (function () {
       if (layer.sourceRectAtTime) {
         var sourceRect = layer.sourceRectAtTime(time, false);
         if (sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
-          return sourceRect;
+          return getTextPhysicsRect(layer, sourceRect, time);
         }
       }
     } catch (sourceRectError) {}
@@ -1937,12 +1991,13 @@ var rdzTools = (function () {
     var mass = Math.max(1, width * height);
     var inertia = shape === "circle" ? (0.5 * mass * radius * radius) : (mass * (width * width + height * height) / 12);
     var isCharacterBody = isLikelySplitCharacterLayer(layer, rect);
+    var isTextBody = layer.matchName === "ADBE Text Layer" && !isCharacterBody;
     var sourceIndex = rect.sourceIndex;
     if (sourceIndex === null || isNaN(sourceIndex)) {
       sourceIndex = index;
     }
 
-    return {
+    var body = {
       layer: layer,
       positionProp: positionProp,
       rotationProp: rotationProp,
@@ -1958,6 +2013,7 @@ var rdzTools = (function () {
       radius: radius,
       shape: shape,
       isCharacterBody: isCharacterBody,
+      isTextBody: isTextBody,
       sourceIndex: sourceIndex,
       startX: Number(position[0]) + rotatedOffset.x,
       startY: Number(position[1]) + rotatedOffset.y,
@@ -1972,6 +2028,11 @@ var rdzTools = (function () {
       sleepFrames: 0,
       samples: []
     };
+
+    var initialAabb = getBodyAabb(body);
+    body.initialMinX = initialAabb.minX;
+    body.initialMaxX = initialAabb.maxX;
+    return body;
   }
 
   function clampValue(value, min, max) {
@@ -2074,9 +2135,13 @@ var rdzTools = (function () {
     var extents = getBodyHalfExtents(body);
     var halfW = Math.min(extents.x, comp.width / 2);
     var halfH = Math.min(extents.y, comp.height / 2);
+    var leftLimit = body.isTextBody && body.initialMinX < 0 ? body.initialMinX : 0;
+    var rightLimit = body.isTextBody && body.initialMaxX > comp.width ? body.initialMaxX : comp.width;
     return {
-      minX: halfW,
-      maxX: comp.width - halfW,
+      leftLimit: leftLimit,
+      rightLimit: rightLimit,
+      minX: leftLimit + halfW,
+      maxX: rightLimit - halfW,
       minY: halfH,
       maxY: comp.height - halfH,
       floorY: comp.height - halfH
@@ -2085,8 +2150,12 @@ var rdzTools = (function () {
 
   function clampBodyToComp(body, comp) {
     var limits = getBodyCompLimits(body, comp);
-    body.x = clampValue(body.x, limits.minX, limits.maxX);
-    body.y = clampValue(body.y, limits.minY, limits.maxY);
+    if (limits.minX <= limits.maxX) {
+      body.x = clampValue(body.x, limits.minX, limits.maxX);
+    }
+    if (limits.minY <= limits.maxY) {
+      body.y = clampValue(body.y, limits.minY, limits.maxY);
+    }
   }
 
   function clampAllBodiesToComp(bodies, comp) {
@@ -2096,6 +2165,7 @@ var rdzTools = (function () {
   }
 
   function resolveCompBounds(body, comp, settings) {
+    var limits = getBodyCompLimits(body, comp);
     var points = body.shape === "circle" ? [
       { x: body.x - body.radius, y: body.y },
       { x: body.x + body.radius, y: body.y },
@@ -2109,10 +2179,10 @@ var rdzTools = (function () {
 
     for (var i = 0; i < points.length; i += 1) {
       var point = points[i];
-      if (point.x < 0) {
-        leftContact = collectStaticContact(leftContact, -point.x, point.x, point.y);
-      } else if (point.x > comp.width) {
-        rightContact = collectStaticContact(rightContact, point.x - comp.width, point.x, point.y);
+      if (point.x < limits.leftLimit) {
+        leftContact = collectStaticContact(leftContact, limits.leftLimit - point.x, point.x, point.y);
+      } else if (point.x > limits.rightLimit) {
+        rightContact = collectStaticContact(rightContact, point.x - limits.rightLimit, point.x, point.y);
       }
       if (point.y < 0) {
         topContact = collectStaticContact(topContact, -point.y, point.x, point.y);
