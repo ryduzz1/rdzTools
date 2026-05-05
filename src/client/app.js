@@ -353,13 +353,13 @@ const tools = [
     id: "lookLiquidGlass",
     group: "Looks",
     title: "Liquid glass",
-    blurb: "Builds a precomposed blur adjustment and overlay stroke glass layer.",
+    blurb: "Builds a blur adjustment layer plus a white overlay stroke duplicate.",
     sections: [
       {
         title: "Glass Stack",
-        description: "Turns the selected shape into a blur adjustment, duplicates it for an overlay stroke, then precomposes the pair.",
+        description: "Turns the selected shape into a blur adjustment, then duplicates it as a fill-free white overlay stroke.",
         fields: [
-          { id: "blurAmt", label: "Fast box blur (px)", type: "number", defaultValue: "3" }
+          { id: "blurAmt", label: "Fast box blur (px)", type: "number", defaultValue: "25" }
         ]
       }
     ]

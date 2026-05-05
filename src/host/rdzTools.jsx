@@ -948,6 +948,23 @@ var rdzTools = (function () {
     return removed;
   }
 
+  function removeEffectsByMatchNameOrName(layer, matchName, effectName) {
+    var effects = layer.property("ADBE Effect Parade");
+    if (!effects) {
+      return 0;
+    }
+
+    var removed = 0;
+    for (var i = effects.numProperties; i >= 1; i -= 1) {
+      var effect = effects.property(i);
+      if (effect && (effect.matchName === matchName || effect.name === effectName)) {
+        effect.remove();
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   function sanitizeLayerName(value) {
     return String(value || "Layer").replace(/[\\\/:\*\?\"\<\>\|]/g, "_");
   }
@@ -961,7 +978,7 @@ var rdzTools = (function () {
       thickness: isNaN(payload.thickness) ? 4 : Number(payload.thickness),
       lightAngle: isNaN(payload.lightAngle) ? 135 : Number(payload.lightAngle),
       lightIntensity: isNaN(payload.lightIntensity) ? 0.7 : Number(payload.lightIntensity),
-      blurAmt: isNaN(payload.blurAmt) ? 3 : Number(payload.blurAmt),
+      blurAmt: isNaN(payload.blurAmt) ? 25 : Number(payload.blurAmt),
       bevelThickness: isNaN(payload.bevelThickness) ? 7 : Number(payload.bevelThickness),
       glowRadius: isNaN(payload.glowRadius) ? 22 : Number(payload.glowRadius),
       glowIntensity: isNaN(payload.glowIntensity) ? 0.45 : Number(payload.glowIntensity),
@@ -1006,6 +1023,50 @@ var rdzTools = (function () {
     setEffectValue(stroke, ["ADBE Vector Stroke Line Join", "Line Join", 8], 2);
   }
 
+  function removeVectorFills(contents) {
+    if (!contents) {
+      return 0;
+    }
+
+    var removed = 0;
+    for (var i = contents.numProperties; i >= 1; i -= 1) {
+      var item = contents.property(i);
+      if (!item) {
+        continue;
+      }
+
+      if (item.matchName === "ADBE Vector Graphic - Fill" || item.matchName === "ADBE Vector Graphic - G-Fill") {
+        item.remove();
+        removed += 1;
+      } else if (item.matchName === "ADBE Vector Group") {
+        removed += removeVectorFills(item.property("ADBE Vectors Group"));
+      }
+    }
+    return removed;
+  }
+
+  function setVectorStrokesWhite(contents, settings) {
+    if (!contents) {
+      return 0;
+    }
+
+    var updated = 0;
+    for (var i = 1; i <= contents.numProperties; i += 1) {
+      var item = contents.property(i);
+      if (!item) {
+        continue;
+      }
+
+      if (item.matchName === "ADBE Vector Graphic - Stroke") {
+        setVectorStrokeValues(item, settings);
+        updated += 1;
+      } else if (item.matchName === "ADBE Vector Group") {
+        updated += setVectorStrokesWhite(item.property("ADBE Vectors Group"), settings);
+      }
+    }
+    return updated;
+  }
+
   function vectorContentsHasShape(contents) {
     if (!contents) {
       return false;
@@ -1048,15 +1109,48 @@ var rdzTools = (function () {
       throw new Error("Liquid glass stroke requires a shape layer.");
     }
 
+    removeVectorFills(contents);
     if (addOverlayStrokeToContents(contents, settings) === 0) {
       setVectorStrokeValues(contents.addProperty("ADBE Vector Graphic - Stroke"), settings);
     }
+    setVectorStrokesWhite(contents, settings);
+  }
+
+  function createLiquidGlassControlNull(comp, name, layers) {
+    var control = comp.layers.addNull();
+    control.name = name + "_LG_CTRL";
+    control.label = 10;
+
+    var position = getTransformProp(layers[0], "Position");
+    var controlPosition = getTransformProp(control, "Position");
+    if (position && controlPosition) {
+      try {
+        controlPosition.setValue(position.value);
+      } catch (positionError) {}
+    }
+
+    var inPoint = layers[0].inPoint;
+    var outPoint = layers[0].outPoint;
+    for (var i = 1; i < layers.length; i += 1) {
+      inPoint = Math.min(inPoint, layers[i].inPoint);
+      outPoint = Math.max(outPoint, layers[i].outPoint);
+    }
+    control.inPoint = inPoint;
+    control.outPoint = outPoint;
+
+    for (var l = 0; l < layers.length; l += 1) {
+      try {
+        layers[l].parent = control;
+      } catch (parentError) {}
+    }
+
+    return control;
   }
 
   function applyLiquidGlassLook(layer, settings) {
     var comp = layer.containingComp;
     var sourceName = sanitizeLayerName(layer.name);
-    var blurAmount = Math.max(1, settings.blurAmt || 3);
+    var blurAmount = Math.max(1, settings.blurAmt || 25);
 
     layer.adjustmentLayer = true;
     layer.name = sourceName + "_LG_Blur";
@@ -1071,16 +1165,16 @@ var rdzTools = (function () {
     var strokeLayer = layer.duplicate();
     strokeLayer.name = sourceName + "_LG_Stroke";
     strokeLayer.adjustmentLayer = false;
-    removeEffectsByMatchName(strokeLayer, "ADBE Fast Box Blur");
+    removeEffectsByMatchNameOrName(strokeLayer, "ADBE Fast Box Blur", "Fast Box Blur");
     addOverlayStroke(strokeLayer, { strokeWidth: 1.5 });
     try {
       strokeLayer.blendingMode = BlendingMode.OVERLAY;
     } catch (blendError) {}
 
-    var indices = [layer.index, strokeLayer.index];
-    indices.sort(function (a, b) { return a - b; });
-    var precompName = "rdz_LiquidGlass_" + sourceName;
-    comp.layers.precompose(indices, precompName, true);
+    var controlLayer = createLiquidGlassControlNull(comp, sourceName, [layer, strokeLayer]);
+    layer.selected = true;
+    strokeLayer.selected = true;
+    controlLayer.selected = true;
   }
 
   function applyLayerBlurFadeIn(layer, comp, settings) {
