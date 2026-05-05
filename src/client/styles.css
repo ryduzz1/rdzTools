@@ -270,7 +270,8 @@ select {
 
 .anchor-button,
 .prime-command,
-.compact-command {
+.compact-command,
+.wide-command {
   border: 1px solid var(--line);
   background: linear-gradient(180deg, #2d2d2d, #252525);
   color: var(--text);
@@ -287,7 +288,8 @@ select {
 
 .anchor-button:hover,
 .prime-command:hover,
-.compact-command:hover {
+.compact-command:hover,
+.wide-command:hover {
   transform: translateY(-1px);
   border-color: var(--line-2);
   box-shadow: var(--shadow);
@@ -296,7 +298,8 @@ select {
 
 .anchor-button:active,
 .prime-command:active,
-.compact-command:active {
+.compact-command:active,
+.wide-command:active {
   transform: scale(0.985);
 }
 
@@ -446,6 +449,120 @@ select {
 .prime-command span:last-child {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.wide-command-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.wide-command-row {
+  display: grid;
+  position: relative;
+}
+
+.wide-command-row.has-custom-settings .wide-command {
+  border-left: 2px solid rgba(45, 140, 255, 0.9);
+}
+
+.wide-command {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 11px;
+  border-radius: 10px;
+  border-color: #5a5a5a;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    3px 4px 0 rgba(0, 0, 0, 0.26);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.wide-command span:last-child {
+  min-width: 0;
+}
+
+.wide-command > span:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wide-edit-slot {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+
+.wide-edit-hotspot {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.wide-edit-hotspot .edit-icon {
+  opacity: 0;
+}
+
+.wide-edit-hotspot:hover + .wide-command,
+.wide-edit-hotspot:focus-visible + .wide-command {
+  border-color: var(--accent);
+}
+
+.wide-edit-hotspot:hover + .wide-command .wide-edit-slot,
+.wide-edit-hotspot:focus-visible + .wide-command .wide-edit-slot {
+  border-color: var(--accent);
+  background: #363636;
+}
+
+.wide-icon {
+  width: 28px;
+  height: 24px;
+  display: block;
+  position: relative;
+  color: #bdbdbd;
+}
+
+.wide-icon-physics::before,
+.wide-icon-physics::after {
+  content: "";
+  position: absolute;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+}
+
+.wide-icon-physics::before {
+  width: 12px;
+  height: 12px;
+  left: 2px;
+  top: 2px;
+  transform: rotate(-12deg);
+}
+
+.wide-icon-physics::after {
+  width: 11px;
+  height: 11px;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 999px;
 }
 
 .prime-icon {

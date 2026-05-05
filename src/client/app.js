@@ -637,6 +637,33 @@ const tools = [
     ]
   },
   {
+    id: "rigidBodySim",
+    group: "Rigging",
+    title: "Rigid Body Simulation",
+    blurb: "Bakes selected layers as simple falling rigid bodies with optional comp bounds and layer collisions.",
+    sections: [
+      {
+        title: "Simulation",
+        description: "Bakes Position and Rotation keyframes from the current time.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "2.5" },
+          { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
+          { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.42" },
+          { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.18" },
+          { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "2" }
+        ]
+      },
+      {
+        title: "Bounds And Collisions",
+        description: "Use comp edges as walls and optionally collide selected layers with each other.",
+        fields: [
+          { id: "boundedByComp", label: "Bound by comp edges", type: "checkbox", defaultValue: true },
+          { id: "interactWithEachOther", label: "Selected layers interact with each other", type: "checkbox", defaultValue: true }
+        ]
+      }
+    ]
+  },
+  {
     id: "centerAnchor",
     group: "Rigging",
     title: "Center anchor",
@@ -742,6 +769,9 @@ const primaryToolButtons = [
   { id: "precomposeSelected", icon: "precomp" },
   { id: "centerInComp", icon: "center" },
   { id: "saveFrame", icon: "save" }
+];
+const wideToolButtons = [
+  { id: "rigidBodySim" }
 ];
 const compactToolButtons = [
   { id: "freezeFrame", label: "FRZ" },
@@ -1109,6 +1139,31 @@ function compactCommandMarkup(entry) {
   `;
 }
 
+function wideCommandMarkup(entry) {
+  const tool = toolMap[entry.id];
+  const isEdited = hasCustomSettings(entry.id);
+  return `
+    <div class="wide-command-row ${isEdited ? "has-custom-settings" : ""}">
+      <button class="wide-edit-hotspot" data-edit-tool="${entry.id}" aria-label="Edit ${tool.title} settings">
+        <svg class="edit-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
+          <path d="M10.8 3.7l1.5 1.5"></path>
+        </svg>
+      </button>
+      <button class="wide-command" data-run-tool="${entry.id}" aria-label="${tool.title}">
+        <span class="wide-icon wide-icon-physics" aria-hidden="true"></span>
+        <span>${tool.title}</span>
+        <span class="wide-edit-slot" aria-hidden="true">
+          <svg class="edit-icon" viewBox="0 0 16 16">
+            <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
+            <path d="M10.8 3.7l1.5 1.5"></path>
+          </svg>
+        </span>
+      </button>
+    </div>
+  `;
+}
+
 function renderToolsPanel() {
   return `
     <section class="tools-panel">
@@ -1121,6 +1176,9 @@ function renderToolsPanel() {
         <div class="prime-command-stack">
           ${primaryToolButtons.map(primaryCommandMarkup).join("")}
         </div>
+      </div>
+      <div class="wide-command-stack">
+        ${wideToolButtons.map(wideCommandMarkup).join("")}
       </div>
       <div class="tools-divider"></div>
       <div class="compact-command-grid">

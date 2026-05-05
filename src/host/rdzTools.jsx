@@ -1560,6 +1560,692 @@ var rdzTools = (function () {
     return cleared;
   }
 
+  function normalizeRigidBodySettings(comp, payload) {
+    return {
+      startSec: parseStartTime(comp, payload.startSec),
+      duration: Math.max(comp.frameDuration, Math.min(10, isNaN(payload.duration) ? 2.5 : Number(payload.duration))),
+      gravity: Math.max(0, Math.min(6000, isNaN(payload.gravity) ? 1800 : Number(payload.gravity))),
+      bounce: Math.max(0, Math.min(1, isNaN(payload.bounce) ? 0.42 : Number(payload.bounce))),
+      friction: Math.max(0, Math.min(1, isNaN(payload.friction) ? 0.18 : Number(payload.friction))),
+      keyEvery: Math.max(1, Math.min(12, Math.round(isNaN(payload.keyEvery) ? 2 : Number(payload.keyEvery)))),
+      boundedByComp: payload.boundedByComp !== false,
+      interactWithEachOther: payload.interactWithEachOther !== false
+    };
+  }
+
+  function removeAllKeys(prop) {
+    if (!prop || !prop.numKeys) {
+      return;
+    }
+    while (prop.numKeys > 0) {
+      try {
+        prop.removeKey(1);
+      } catch (removeError) {
+        break;
+      }
+    }
+  }
+
+  function getLayerRect(layer, time) {
+    try {
+      if (layer.sourceRectAtTime) {
+        var sourceRect = layer.sourceRectAtTime(time, false);
+        if (sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
+          return sourceRect;
+        }
+      }
+    } catch (sourceRectError) {}
+
+    var width = layer.width || 64;
+    var height = layer.height || 64;
+    var anchor = getTransformProp(layer, "Anchor Point");
+    var anchorValue = anchor ? anchor.value : [width / 2, height / 2];
+    return {
+      left: -anchorValue[0],
+      top: -anchorValue[1],
+      width: width,
+      height: height
+    };
+  }
+
+  function rotatePoint(x, y, degrees) {
+    var radians = (degrees || 0) * Math.PI / 180;
+    var cos = Math.cos(radians);
+    var sin = Math.sin(radians);
+    return {
+      x: x * cos - y * sin,
+      y: x * sin + y * cos
+    };
+  }
+
+  function vectorContentsHasEllipse(contents) {
+    if (!contents) {
+      return false;
+    }
+
+    for (var i = 1; i <= contents.numProperties; i += 1) {
+      var item = contents.property(i);
+      if (!item) {
+        continue;
+      }
+      if (item.matchName === "ADBE Vector Shape - Ellipse") {
+        return true;
+      }
+      if (item.matchName === "ADBE Vector Group" && vectorContentsHasEllipse(item.property("ADBE Vectors Group"))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function getRigidBodyShape(layer, width, height) {
+    try {
+      if (layer.matchName === "ADBE Vector Layer" && vectorContentsHasEllipse(layer.property("ADBE Root Vectors Group"))) {
+        return "circle";
+      }
+    } catch (shapeError) {}
+
+    return "box";
+  }
+
+  function getRigidBodyFromLayer(layer, comp, settings, index) {
+    var positionProp = getTransformProp(layer, "Position");
+    var scaleProp = getTransformProp(layer, "Scale");
+    var rotationProp = getTransformProp(layer, "Rotation");
+    if (!positionProp || !scaleProp) {
+      return null;
+    }
+
+    var rect = getLayerRect(layer, settings.startSec);
+    var position = positionProp.value;
+    var scale = scaleProp.value;
+    var sx = Math.max(0.001, Math.abs(Number(scale[0]) || 100) / 100);
+    var sy = Math.max(0.001, Math.abs(Number(scale[1]) || 100) / 100);
+    var width = Math.max(4, rect.width * sx);
+    var height = Math.max(4, rect.height * sy);
+    var localOffsetX = (rect.left + rect.width / 2) * sx;
+    var localOffsetY = (rect.top + rect.height / 2) * sy;
+    var zValue = position.length > 2 ? position[2] : null;
+    var initialRotation = rotationProp ? Number(rotationProp.value) || 0 : 0;
+    var rotatedOffset = rotatePoint(localOffsetX, localOffsetY, initialRotation);
+    var shape = getRigidBodyShape(layer, width, height);
+    var radius = Math.max(width, height) / 2;
+    var mass = Math.max(1, width * height);
+    var inertia = shape === "circle" ? (0.5 * mass * radius * radius) : (mass * (width * width + height * height) / 12);
+
+    return {
+      layer: layer,
+      positionProp: positionProp,
+      rotationProp: rotationProp,
+      localCenterOffsetX: localOffsetX,
+      localCenterOffsetY: localOffsetY,
+      zValue: zValue,
+      x: Number(position[0]) + rotatedOffset.x,
+      y: Number(position[1]) + rotatedOffset.y,
+      vx: 0,
+      vy: 0,
+      width: width,
+      height: height,
+      radius: radius,
+      shape: shape,
+      rotation: initialRotation,
+      angularVelocity: 0,
+      mass: mass,
+      invMass: 1 / mass,
+      inertia: Math.max(1, inertia),
+      invInertia: 1 / Math.max(1, inertia),
+      samples: []
+    };
+  }
+
+  function clampValue(value, min, max) {
+    if (min > max) {
+      return (min + max) / 2;
+    }
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function getBodyHalfExtents(body) {
+    if (body.shape === "circle") {
+      return {
+        x: body.radius,
+        y: body.radius
+      };
+    }
+
+    var radians = (body.rotation || 0) * Math.PI / 180;
+    var cos = Math.abs(Math.cos(radians));
+    var sin = Math.abs(Math.sin(radians));
+    var halfW = body.width / 2;
+    var halfH = body.height / 2;
+    return {
+      x: halfW * cos + halfH * sin,
+      y: halfW * sin + halfH * cos
+    };
+  }
+
+  function getBodyCompLimits(body, comp) {
+    var extents = getBodyHalfExtents(body);
+    var halfW = Math.min(extents.x, comp.width / 2);
+    var halfH = Math.min(extents.y, comp.height / 2);
+    return {
+      minX: halfW,
+      maxX: comp.width - halfW,
+      minY: halfH,
+      maxY: comp.height - halfH,
+      floorY: comp.height - halfH
+    };
+  }
+
+  function clampBodyToComp(body, comp) {
+    var limits = getBodyCompLimits(body, comp);
+    body.x = clampValue(body.x, limits.minX, limits.maxX);
+    body.y = clampValue(body.y, limits.minY, limits.maxY);
+  }
+
+  function clampAllBodiesToComp(bodies, comp) {
+    for (var i = 0; i < bodies.length; i += 1) {
+      clampBodyToComp(bodies[i], comp);
+    }
+  }
+
+  function resolveCompBounds(body, comp, settings) {
+    var points = body.shape === "circle" ? [
+      { x: body.x - body.radius, y: body.y },
+      { x: body.x + body.radius, y: body.y },
+      { x: body.x, y: body.y - body.radius },
+      { x: body.x, y: body.y + body.radius }
+    ] : getBoxVertices(body);
+
+    for (var i = 0; i < points.length; i += 1) {
+      var point = points[i];
+      if (point.x < 0) {
+        resolveStaticCollision(body, 1, 0, -point.x, point.x, point.y, settings);
+      } else if (point.x > comp.width) {
+        resolveStaticCollision(body, -1, 0, point.x - comp.width, point.x, point.y, settings);
+      }
+      if (point.y < 0) {
+        resolveStaticCollision(body, 0, 1, -point.y, point.x, point.y, settings);
+      } else if (point.y > comp.height) {
+        resolveStaticCollision(body, 0, -1, point.y - comp.height, point.x, point.y, settings);
+      }
+    }
+
+    if (Math.abs(body.vy) < Math.max(24, settings.gravity * 0.035) && isBodyNearFloor(body, comp)) {
+      body.vy = 0;
+      body.vx *= 1 - settings.friction * 0.35;
+      body.angularVelocity *= 1 - settings.friction * 0.35;
+    }
+    clampBodyToComp(body, comp);
+  }
+
+  function normalizeAxis(axis) {
+    var length = Math.sqrt(axis.x * axis.x + axis.y * axis.y);
+    if (length < 0.0001) {
+      return { x: 1, y: 0 };
+    }
+    return {
+      x: axis.x / length,
+      y: axis.y / length
+    };
+  }
+
+  function getBoxVertices(body) {
+    var halfW = body.width / 2;
+    var halfH = body.height / 2;
+    var corners = [
+      { x: -halfW, y: -halfH },
+      { x: halfW, y: -halfH },
+      { x: halfW, y: halfH },
+      { x: -halfW, y: halfH }
+    ];
+    var vertices = [];
+    for (var i = 0; i < corners.length; i += 1) {
+      var rotated = rotatePoint(corners[i].x, corners[i].y, body.rotation);
+      vertices.push({
+        x: body.x + rotated.x,
+        y: body.y + rotated.y
+      });
+    }
+    return vertices;
+  }
+
+  function getPolygonAxes(vertices) {
+    var axes = [];
+    for (var i = 0; i < vertices.length; i += 1) {
+      var next = vertices[(i + 1) % vertices.length];
+      var edgeX = next.x - vertices[i].x;
+      var edgeY = next.y - vertices[i].y;
+      axes.push(normalizeAxis({ x: -edgeY, y: edgeX }));
+    }
+    return axes;
+  }
+
+  function projectVertices(vertices, axis) {
+    var min = vertices[0].x * axis.x + vertices[0].y * axis.y;
+    var max = min;
+    for (var i = 1; i < vertices.length; i += 1) {
+      var projection = vertices[i].x * axis.x + vertices[i].y * axis.y;
+      min = Math.min(min, projection);
+      max = Math.max(max, projection);
+    }
+    return { min: min, max: max };
+  }
+
+  function projectCircle(body, axis) {
+    var center = body.x * axis.x + body.y * axis.y;
+    return {
+      min: center - body.radius,
+      max: center + body.radius
+    };
+  }
+
+  function getProjectionOverlap(aProjection, bProjection) {
+    return Math.min(aProjection.max, bProjection.max) - Math.max(aProjection.min, bProjection.min);
+  }
+
+  function orientAxisFromAToB(axis, a, b) {
+    var centerDot = (b.x - a.x) * axis.x + (b.y - a.y) * axis.y;
+    if (centerDot < 0) {
+      return { x: -axis.x, y: -axis.y };
+    }
+    return axis;
+  }
+
+  function cross2(ax, ay, bx, by) {
+    return ax * by - ay * bx;
+  }
+
+  function getPointVelocity(body, pointX, pointY) {
+    var rx = pointX - body.x;
+    var ry = pointY - body.y;
+    var omega = (body.angularVelocity || 0) * Math.PI / 180;
+    return {
+      x: body.vx - omega * ry,
+      y: body.vy + omega * rx
+    };
+  }
+
+  function applyAngularImpulse(body, rx, ry, impulseX, impulseY, direction) {
+    var torque = cross2(rx, ry, impulseX, impulseY) * direction;
+    body.angularVelocity += torque * body.invInertia * 180 / Math.PI;
+  }
+
+  function getSupportPoint(body, dirX, dirY) {
+    if (body.shape === "circle") {
+      var normalized = normalizeAxis({ x: dirX, y: dirY });
+      return {
+        x: body.x + normalized.x * body.radius,
+        y: body.y + normalized.y * body.radius
+      };
+    }
+
+    var vertices = getBoxVertices(body);
+    var best = vertices[0];
+    var bestDot = best.x * dirX + best.y * dirY;
+    for (var i = 1; i < vertices.length; i += 1) {
+      var dot = vertices[i].x * dirX + vertices[i].y * dirY;
+      if (dot > bestDot) {
+        bestDot = dot;
+        best = vertices[i];
+      }
+    }
+    return best;
+  }
+
+  function getCollisionContactPoint(a, b, normalX, normalY) {
+    var aPoint = getSupportPoint(a, normalX, normalY);
+    var bPoint = getSupportPoint(b, -normalX, -normalY);
+    return {
+      x: (aPoint.x + bPoint.x) / 2,
+      y: (aPoint.y + bPoint.y) / 2
+    };
+  }
+
+  function applyBodyImpulse(a, b, normalX, normalY, contactX, contactY, settings) {
+    var raX = contactX - a.x;
+    var raY = contactY - a.y;
+    var rbX = contactX - b.x;
+    var rbY = contactY - b.y;
+    var velocityA = getPointVelocity(a, contactX, contactY);
+    var velocityB = getPointVelocity(b, contactX, contactY);
+    var rvx = velocityB.x - velocityA.x;
+    var rvy = velocityB.y - velocityA.y;
+    var velocityAlongNormal = rvx * normalX + rvy * normalY;
+    if (velocityAlongNormal > 0) {
+      return;
+    }
+
+    var raCrossN = cross2(raX, raY, normalX, normalY);
+    var rbCrossN = cross2(rbX, rbY, normalX, normalY);
+    var denominator = a.invMass + b.invMass + (raCrossN * raCrossN) * a.invInertia + (rbCrossN * rbCrossN) * b.invInertia;
+    if (denominator <= 0) {
+      return;
+    }
+
+    var impulse = -(1 + settings.bounce) * velocityAlongNormal / denominator;
+    var impulseX = impulse * normalX;
+    var impulseY = impulse * normalY;
+    a.vx -= impulseX * a.invMass;
+    a.vy -= impulseY * a.invMass;
+    b.vx += impulseX * b.invMass;
+    b.vy += impulseY * b.invMass;
+    applyAngularImpulse(a, raX, raY, impulseX, impulseY, -1);
+    applyAngularImpulse(b, rbX, rbY, impulseX, impulseY, 1);
+
+    var afterA = getPointVelocity(a, contactX, contactY);
+    var afterB = getPointVelocity(b, contactX, contactY);
+    var tangentX = normalY;
+    var tangentY = -normalX;
+    var tangentVelocity = (afterB.x - afterA.x) * tangentX + (afterB.y - afterA.y) * tangentY;
+    var raCrossT = cross2(raX, raY, tangentX, tangentY);
+    var rbCrossT = cross2(rbX, rbY, tangentX, tangentY);
+    var tangentDenominator = a.invMass + b.invMass + (raCrossT * raCrossT) * a.invInertia + (rbCrossT * rbCrossT) * b.invInertia;
+    if (tangentDenominator > 0) {
+      var frictionImpulse = -tangentVelocity / tangentDenominator;
+      var maxFriction = Math.abs(impulse) * Math.min(0.95, settings.friction);
+      frictionImpulse = clampValue(frictionImpulse, -maxFriction, maxFriction);
+      var frictionX = frictionImpulse * tangentX;
+      var frictionY = frictionImpulse * tangentY;
+      a.vx -= frictionX * a.invMass;
+      a.vy -= frictionY * a.invMass;
+      b.vx += frictionX * b.invMass;
+      b.vy += frictionY * b.invMass;
+      applyAngularImpulse(a, raX, raY, frictionX, frictionY, -1);
+      applyAngularImpulse(b, rbX, rbY, frictionX, frictionY, 1);
+    }
+  }
+
+  function resolveStaticCollision(body, normalX, normalY, overlap, contactX, contactY, settings) {
+    if (overlap <= 0) {
+      return;
+    }
+
+    body.x += normalX * overlap;
+    body.y += normalY * overlap;
+
+    var rx = contactX - body.x;
+    var ry = contactY - body.y;
+    var velocity = getPointVelocity(body, contactX, contactY);
+    var velocityAlongNormal = velocity.x * normalX + velocity.y * normalY;
+    if (velocityAlongNormal < 0) {
+      var rCrossN = cross2(rx, ry, normalX, normalY);
+      var denominator = body.invMass + (rCrossN * rCrossN) * body.invInertia;
+      if (denominator > 0) {
+        var impulse = -(1 + settings.bounce) * velocityAlongNormal / denominator;
+        var impulseX = impulse * normalX;
+        var impulseY = impulse * normalY;
+        body.vx += impulseX * body.invMass;
+        body.vy += impulseY * body.invMass;
+        applyAngularImpulse(body, rx, ry, impulseX, impulseY, 1);
+      }
+    }
+
+    var afterVelocity = getPointVelocity(body, contactX, contactY);
+    var tangentX = normalY;
+    var tangentY = -normalX;
+    var tangentVelocity = afterVelocity.x * tangentX + afterVelocity.y * tangentY;
+    var rCrossT = cross2(rx, ry, tangentX, tangentY);
+    var tangentDenominator = body.invMass + (rCrossT * rCrossT) * body.invInertia;
+    if (tangentDenominator > 0) {
+      var frictionImpulse = -tangentVelocity / tangentDenominator;
+      var maxFriction = Math.abs(velocityAlongNormal) * Math.min(0.95, settings.friction);
+      frictionImpulse = clampValue(frictionImpulse, -maxFriction, maxFriction);
+      var frictionX = frictionImpulse * tangentX;
+      var frictionY = frictionImpulse * tangentY;
+      body.vx += frictionX * body.invMass;
+      body.vy += frictionY * body.invMass;
+      applyAngularImpulse(body, rx, ry, frictionX, frictionY, 1);
+    }
+  }
+
+  function isBodyNearFloor(body, comp) {
+    var points = body.shape === "circle" ? [{ x: body.x, y: body.y + body.radius }] : getBoxVertices(body);
+    for (var i = 0; i < points.length; i += 1) {
+      if (Math.abs(points[i].y - comp.height) < 0.75) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function testCollisionAxis(axis, aProjection, bProjection, a, b, manifold) {
+    var orientedAxis = orientAxisFromAToB(axis, a, b);
+    var overlap = getProjectionOverlap(aProjection, bProjection);
+    if (overlap <= 0) {
+      return false;
+    }
+    if (overlap < manifold.overlap) {
+      manifold.overlap = overlap;
+      manifold.normalX = orientedAxis.x;
+      manifold.normalY = orientedAxis.y;
+    }
+    return true;
+  }
+
+  function getPolygonPolygonManifold(a, b) {
+    var aVertices = getBoxVertices(a);
+    var bVertices = getBoxVertices(b);
+    var axes = getPolygonAxes(aVertices).concat(getPolygonAxes(bVertices));
+    var manifold = { overlap: 999999, normalX: 1, normalY: 0 };
+
+    for (var i = 0; i < axes.length; i += 1) {
+      var axis = axes[i];
+      if (!testCollisionAxis(axis, projectVertices(aVertices, axis), projectVertices(bVertices, axis), a, b, manifold)) {
+        return null;
+      }
+    }
+
+    return manifold;
+  }
+
+  function getCircleCircleManifold(a, b) {
+    var dx = b.x - a.x;
+    var dy = b.y - a.y;
+    var distanceSq = dx * dx + dy * dy;
+    var minDistance = a.radius + b.radius;
+    if (distanceSq >= minDistance * minDistance) {
+      return null;
+    }
+
+    var distance = Math.sqrt(distanceSq);
+    return {
+      normalX: distance > 0.001 ? dx / distance : 1,
+      normalY: distance > 0.001 ? dy / distance : 0,
+      overlap: minDistance - distance
+    };
+  }
+
+  function getClosestVertexAxis(circle, vertices) {
+    var closest = vertices[0];
+    var closestDistanceSq = 999999999;
+    for (var i = 0; i < vertices.length; i += 1) {
+      var dx = vertices[i].x - circle.x;
+      var dy = vertices[i].y - circle.y;
+      var distanceSq = dx * dx + dy * dy;
+      if (distanceSq < closestDistanceSq) {
+        closestDistanceSq = distanceSq;
+        closest = vertices[i];
+      }
+    }
+    return normalizeAxis({ x: closest.x - circle.x, y: closest.y - circle.y });
+  }
+
+  function getCirclePolygonManifold(circle, polygon, flipNormal) {
+    var vertices = getBoxVertices(polygon);
+    var axes = getPolygonAxes(vertices);
+    axes.push(getClosestVertexAxis(circle, vertices));
+
+    var manifold = { overlap: 999999, normalX: 1, normalY: 0 };
+    for (var i = 0; i < axes.length; i += 1) {
+      var axis = axes[i];
+      if (!testCollisionAxis(axis, projectCircle(circle, axis), projectVertices(vertices, axis), circle, polygon, manifold)) {
+        return null;
+      }
+    }
+
+    if (flipNormal) {
+      manifold.normalX *= -1;
+      manifold.normalY *= -1;
+    }
+    return manifold;
+  }
+
+  function getCollisionManifold(a, b) {
+    if (a.shape === "circle" && b.shape === "circle") {
+      return getCircleCircleManifold(a, b);
+    }
+    if (a.shape === "circle") {
+      return getCirclePolygonManifold(a, b, false);
+    }
+    if (b.shape === "circle") {
+      return getCirclePolygonManifold(b, a, true);
+    }
+    return getPolygonPolygonManifold(a, b);
+  }
+
+  function resolveBodyCollision(a, b, settings) {
+    var manifold = getCollisionManifold(a, b);
+    if (!manifold) {
+      return;
+    }
+
+    var normalX = manifold.normalX;
+    var normalY = manifold.normalY;
+    var overlap = manifold.overlap;
+    var totalMass = a.mass + b.mass;
+    var aShare = b.mass / totalMass;
+    var bShare = a.mass / totalMass;
+
+    a.x -= normalX * overlap * aShare;
+    a.y -= normalY * overlap * aShare;
+    b.x += normalX * overlap * bShare;
+    b.y += normalY * overlap * bShare;
+
+    var contact = getCollisionContactPoint(a, b, normalX, normalY);
+    applyBodyImpulse(a, b, normalX, normalY, contact.x, contact.y, settings);
+
+    if (Math.abs(normalY) > 0.65 && Math.abs(a.vy) < Math.max(20, settings.gravity * 0.025)) {
+      a.vy = 0;
+    }
+    if (Math.abs(normalY) > 0.65 && Math.abs(b.vy) < Math.max(20, settings.gravity * 0.025)) {
+      b.vy = 0;
+    }
+  }
+
+  function sampleRigidBodies(bodies, time, comp, settings) {
+    if (settings && settings.boundedByComp) {
+      clampAllBodiesToComp(bodies, comp);
+    }
+
+    for (var i = 0; i < bodies.length; i += 1) {
+      bodies[i].samples.push({
+        time: time,
+        x: bodies[i].x,
+        y: bodies[i].y,
+        rotation: bodies[i].rotation
+      });
+    }
+  }
+
+  function bakeRigidBodySamples(body) {
+    removeAllKeys(body.positionProp);
+    removeAllKeys(body.rotationProp);
+
+    for (var i = 0; i < body.samples.length; i += 1) {
+      var sample = body.samples[i];
+      var rotatedOffset = rotatePoint(body.localCenterOffsetX, body.localCenterOffsetY, sample.rotation);
+      var positionValue = [sample.x - rotatedOffset.x, sample.y - rotatedOffset.y];
+      if (body.zValue !== null) {
+        positionValue.push(body.zValue);
+      }
+      body.positionProp.setValueAtTime(sample.time, positionValue);
+      if (body.rotationProp) {
+        body.rotationProp.setValueAtTime(sample.time, sample.rotation);
+      }
+    }
+  }
+
+  function applyRigidBodySimulation(comp, settings) {
+    var layers = requireSelectedLayers(comp);
+    var bodies = [];
+    for (var i = 0; i < layers.length; i += 1) {
+      var body = getRigidBodyFromLayer(layers[i], comp, settings, i);
+      if (body) {
+        bodies.push(body);
+      }
+    }
+
+    if (!bodies.length) {
+      return "Error: Selected layers need Position and Scale properties.";
+    }
+
+    var dt = comp.frameDuration;
+    var totalFrames = Math.max(1, Math.round(settings.duration / dt));
+    var startTime = settings.startSec;
+    if (settings.boundedByComp) {
+      clampAllBodiesToComp(bodies, comp);
+    }
+    sampleRigidBodies(bodies, startTime, comp, settings);
+
+    for (var frame = 1; frame <= totalFrames; frame += 1) {
+      var time = startTime + frame * dt;
+      var substeps = settings.interactWithEachOther ? 4 : 2;
+      var stepDt = dt / substeps;
+
+      for (var step = 0; step < substeps; step += 1) {
+        for (var b = 0; b < bodies.length; b += 1) {
+          var current = bodies[b];
+          current.vy += settings.gravity * stepDt;
+          current.x += current.vx * stepDt;
+          current.y += current.vy * stepDt;
+          current.rotation += current.angularVelocity * stepDt;
+        }
+
+        if (settings.boundedByComp) {
+          for (var preBoundIndex = 0; preBoundIndex < bodies.length; preBoundIndex += 1) {
+            resolveCompBounds(bodies[preBoundIndex], comp, settings);
+          }
+        }
+
+        if (settings.interactWithEachOther) {
+          var passes = Math.min(10, Math.max(4, bodies.length * 2));
+          for (var pass = 0; pass < passes; pass += 1) {
+            for (var aIndex = 0; aIndex < bodies.length - 1; aIndex += 1) {
+              for (var bIndex = aIndex + 1; bIndex < bodies.length; bIndex += 1) {
+                resolveBodyCollision(bodies[aIndex], bodies[bIndex], settings);
+              }
+            }
+            if (settings.boundedByComp) {
+              for (var passBoundIndex = 0; passBoundIndex < bodies.length; passBoundIndex += 1) {
+                resolveCompBounds(bodies[passBoundIndex], comp, settings);
+              }
+            }
+          }
+        }
+
+        if (settings.boundedByComp) {
+          for (var boundIndex = 0; boundIndex < bodies.length; boundIndex += 1) {
+            resolveCompBounds(bodies[boundIndex], comp, settings);
+          }
+        }
+      }
+
+      if (frame === totalFrames || frame % settings.keyEvery === 0) {
+        sampleRigidBodies(bodies, time, comp, settings);
+      }
+    }
+
+    for (var bakeIndex = 0; bakeIndex < bodies.length; bakeIndex += 1) {
+      bakeRigidBodySamples(bodies[bakeIndex]);
+      bodies[bakeIndex].layer.motionBlur = true;
+    }
+    comp.motionBlur = true;
+
+    return "OK: Baked rigid body simulation to " + bodies.length + " layer(s).";
+  }
+
   function normalizeBounceSettings(payload) {
     var amount = isNaN(payload.amount) ? 10 : Number(payload.amount);
     var duration = isNaN(payload.duration) ? 1 : Number(payload.duration);
@@ -1828,6 +2514,10 @@ var rdzTools = (function () {
 
       if (toolId === "bounce") {
         return applyBounce(comp, normalizeBounceSettings(payload));
+      }
+
+      if (toolId === "rigidBodySim") {
+        return applyRigidBodySimulation(comp, normalizeRigidBodySettings(comp, payload));
       }
 
       if (toolId === "anchorTopLeft" || toolId === "anchorTop" || toolId === "anchorTopRight" || toolId === "anchorLeft" || toolId === "anchorRight" || toolId === "anchorBottomLeft" || toolId === "anchorBottom" || toolId === "anchorBottomRight") {
