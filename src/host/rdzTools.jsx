@@ -124,6 +124,42 @@ var rdzTools = (function () {
     } catch (easeError) {}
   }
 
+  function setSnappyEase(prop) {
+    if (!prop || prop.numKeys < 2) {
+      return;
+    }
+
+    for (var keyIndex = 1; keyIndex <= prop.numKeys; keyIndex += 1) {
+      try {
+        prop.setInterpolationTypeAtKey(keyIndex, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+      } catch (interpolationError) {}
+    }
+
+    try {
+      prop.setTemporalEaseAtKey(1, [new KeyframeEase(0, 28)], [new KeyframeEase(0, 92)]);
+      prop.setTemporalEaseAtKey(2, [new KeyframeEase(0, 88)], [new KeyframeEase(0, 42)]);
+    } catch (easeError) {}
+  }
+
+  function setFourKeyBounceEase(prop) {
+    if (!prop || prop.numKeys < 4) {
+      return;
+    }
+
+    for (var keyIndex = 1; keyIndex <= prop.numKeys; keyIndex += 1) {
+      try {
+        prop.setInterpolationTypeAtKey(keyIndex, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+      } catch (interpolationError) {}
+    }
+
+    try {
+      prop.setTemporalEaseAtKey(1, [new KeyframeEase(0, 26)], [new KeyframeEase(0, 92)]);
+      prop.setTemporalEaseAtKey(2, [new KeyframeEase(0, 90)], [new KeyframeEase(0, 48)]);
+      prop.setTemporalEaseAtKey(3, [new KeyframeEase(0, 52)], [new KeyframeEase(0, 82)]);
+      prop.setTemporalEaseAtKey(4, [new KeyframeEase(0, 86)], [new KeyframeEase(0, 34)]);
+    } catch (easeError) {}
+  }
+
   function setLayerEase(prop) {
     if (!prop || prop.numKeys < 2) {
       return;
@@ -189,6 +225,34 @@ var rdzTools = (function () {
     }
   }
 
+  function setSelectorToCharacter(rangeSelector, charIndex, totalChars) {
+    var start = rangeSelector.property(1);
+    var end = rangeSelector.property(2);
+    var offset = rangeSelector.property(3);
+    var advanced = rangeSelector.property(7);
+    var sliceStart = (charIndex / totalChars) * 100;
+    var sliceEnd = ((charIndex + 1) / totalChars) * 100;
+
+    if (start) {
+      start.setValue(sliceStart);
+    }
+    if (end) {
+      end.setValue(sliceEnd);
+    }
+    if (offset) {
+      offset.setValue(0);
+    }
+
+    if (advanced) {
+      try { advanced.property(1).setValue(1); } catch (unitsError) {}
+      try { advanced.property(2).setValue(1); } catch (basedOnError) {}
+      try { advanced.property(3).setValue(1); } catch (modeError) {}
+      try { advanced.property(4).setValue(100); } catch (amountError) {}
+      try { advanced.property(5).setValue(1); } catch (shapeError) {}
+      try { advanced.property(6).setValue(0); } catch (smoothnessError) {}
+    }
+  }
+
   function configureTextAnimatorWordGrouping(layer) {
     try {
       var textProps = layer.property("ADBE Text Properties");
@@ -203,6 +267,23 @@ var rdzTools = (function () {
       try {
         moreOptions.property(1).setValue(2);
       } catch (anchorGroupingError) {}
+
+      try {
+        moreOptions.property(2).setValue([50, 50, 0]);
+      } catch (groupingAlignmentError) {}
+    } catch (groupingError) {}
+  }
+
+  function configureTextAnimatorCharacterGrouping(layer) {
+    try {
+      var textProps = layer.property("ADBE Text Properties");
+      if (!textProps) {
+        return;
+      }
+      var moreOptions = textProps.property("ADBE Text More Options");
+      if (!moreOptions) {
+        return;
+      }
 
       try {
         moreOptions.property(2).setValue([50, 50, 0]);
@@ -323,6 +404,183 @@ var rdzTools = (function () {
       }
       if (rotationProp) {
         key2(rotationProp, t0, settings.rotationStart, t1, 0, setWordEase);
+      }
+    }
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
+    comp.motionBlurAdaptiveSampleLimit = 16;
+  }
+
+  function applyCharacterBounceAnimation(layer, comp, settings) {
+    removeOldTextAnimators(layer);
+    configureTextAnimatorCharacterGrouping(layer);
+
+    var textProps = layer.property("ADBE Text Properties");
+    var animators = textProps.property("ADBE Text Animators");
+    var srcText = textProps.property("ADBE Text Document").value.text;
+    var totalChars = Math.max(1, srcText.length);
+
+    for (var i = 0; i < totalChars; i += 1) {
+      var animator = animators.addProperty("ADBE Text Animator");
+      animator.name = "TA_Char_" + (i + 1);
+
+      var animProps = animator.property("ADBE Text Animator Properties");
+      var scaleProp = addAnimatorProperty(animProps, "ADBE Text Scale 3D", "Scale");
+      var opacityProp = addAnimatorProperty(animProps, "ADBE Text Opacity", "Opacity");
+
+      var selectors = animator.property("ADBE Text Selectors");
+      var rangeSelector = selectors.addProperty("ADBE Text Selector");
+      if (!rangeSelector) {
+        rangeSelector = selectors.addProperty("Range Selector");
+      }
+      rangeSelector.name = "Char " + (i + 1);
+      setSelectorToCharacter(rangeSelector, i, totalChars);
+
+      var t0 = settings.startSec + (i * settings.stagger);
+      var t1 = t0 + (settings.wordDur * 0.38);
+      var t2 = t0 + (settings.wordDur * 0.68);
+      var t3 = t0 + settings.wordDur;
+
+      if (opacityProp) {
+        key2(opacityProp, t0, 0, t3, 100, setWordEase);
+      }
+
+      if (scaleProp) {
+        while (scaleProp.numKeys > 0) {
+          try {
+            scaleProp.removeKey(1);
+          } catch (removeScaleError) {
+            break;
+          }
+        }
+
+        try {
+          scaleProp.setValueAtTime(t0, [settings.scaleStart, settings.scaleStart, 100]);
+          scaleProp.setValueAtTime(t1, [settings.scaleOvershoot, settings.scaleOvershoot, 100]);
+          scaleProp.setValueAtTime(t2, [93, 93, 100]);
+          scaleProp.setValueAtTime(t3, [100, 100, 100]);
+        } catch (scale3dError) {
+          scaleProp.setValueAtTime(t0, [settings.scaleStart, settings.scaleStart]);
+          scaleProp.setValueAtTime(t1, [settings.scaleOvershoot, settings.scaleOvershoot]);
+          scaleProp.setValueAtTime(t2, [93, 93]);
+          scaleProp.setValueAtTime(t3, [100, 100]);
+        }
+
+        setFourKeyBounceEase(scaleProp);
+      }
+    }
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
+    comp.motionBlurAdaptiveSampleLimit = 16;
+  }
+
+  function applyWordRotateBounceAnimation(layer, comp, settings) {
+    removeOldTextAnimators(layer);
+    configureTextAnimatorWordGrouping(layer);
+
+    var textProps = layer.property("ADBE Text Properties");
+    var animators = textProps.property("ADBE Text Animators");
+    var srcText = textProps.property("ADBE Text Document").value.text;
+    var words = srcText.match(/\S+/g);
+    var numWords = words ? words.length : 1;
+    var offsetX = settings.distance;
+
+    for (var i = 0; i < numWords; i += 1) {
+      var animator = animators.addProperty("ADBE Text Animator");
+      animator.name = "TA_Word_" + (i + 1);
+
+      var animProps = animator.property("ADBE Text Animator Properties");
+      var posProp = addAnimatorProperty(animProps, "ADBE Text Position 3D", "Position");
+      if (!posProp) {
+        posProp = addAnimatorProperty(animProps, "ADBE Text Position", "Position");
+      }
+      var opacityProp = addAnimatorProperty(animProps, "ADBE Text Opacity", "Opacity");
+      var blurProp = settings.blurEnabled ? addAnimatorProperty(animProps, "ADBE Text Blur", "Blur") : null;
+      var scaleProp = addAnimatorProperty(animProps, "ADBE Text Scale 3D", "Scale");
+      var rotationProp = addAnimatorProperty(animProps, "ADBE Text Rotation", "Rotation");
+
+      var selectors = animator.property("ADBE Text Selectors");
+      var rangeSelector = selectors.addProperty("ADBE Text Selector");
+      if (!rangeSelector) {
+        rangeSelector = selectors.addProperty("Range Selector");
+      }
+      rangeSelector.name = "Word " + (i + 1);
+      setSelectorToWord(rangeSelector, i, numWords);
+
+      var t0 = settings.startSec + (i * settings.stagger);
+      var t1 = t0 + (settings.wordDur * 0.42);
+      var t2 = t0 + (settings.wordDur * 0.76);
+      var t3 = t0 + settings.wordDur;
+
+      if (posProp) {
+        try {
+          posProp.setValueAtTime(t0, [offsetX, 0, 0]);
+          posProp.setValueAtTime(t1, [-6, 0, 0]);
+          posProp.setValueAtTime(t3, [0, 0, 0]);
+        } catch (position3dError) {
+          posProp.setValueAtTime(t0, [offsetX, 0]);
+          posProp.setValueAtTime(t1, [-6, 0]);
+          posProp.setValueAtTime(t3, [0, 0]);
+        }
+        try {
+          posProp.setInterpolationTypeAtKey(1, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+          posProp.setInterpolationTypeAtKey(2, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+          posProp.setInterpolationTypeAtKey(3, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+          posProp.setTemporalEaseAtKey(1, [new KeyframeEase(0, 24)], [new KeyframeEase(0, 86)]);
+          posProp.setTemporalEaseAtKey(2, [new KeyframeEase(0, 82)], [new KeyframeEase(0, 48)]);
+          posProp.setTemporalEaseAtKey(3, [new KeyframeEase(0, 90)], [new KeyframeEase(0, 30)]);
+        } catch (positionEaseError) {}
+      }
+
+      if (opacityProp) {
+        key2(opacityProp, t0, 0, t3, 100, setSnappyEase);
+      }
+
+      if (settings.blurEnabled && blurProp) {
+        try {
+          blurProp.setValueAtTime(t0, [settings.blurAmt, settings.blurAmt]);
+          blurProp.setValueAtTime(t1, [2, 2]);
+          blurProp.setValueAtTime(t3, [0, 0]);
+        } catch (blur2dError) {
+          try {
+            blurProp.setValueAtTime(t0, settings.blurAmt);
+            blurProp.setValueAtTime(t1, 2);
+            blurProp.setValueAtTime(t3, 0);
+          } catch (blur1dError) {}
+        }
+        try {
+          blurProp.setInterpolationTypeAtKey(1, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+          blurProp.setInterpolationTypeAtKey(2, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+          blurProp.setInterpolationTypeAtKey(3, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+          blurProp.setTemporalEaseAtKey(1, [new KeyframeEase(0, 20)], [new KeyframeEase(0, 90)]);
+          blurProp.setTemporalEaseAtKey(2, [new KeyframeEase(0, 88)], [new KeyframeEase(0, 34)]);
+          blurProp.setTemporalEaseAtKey(3, [new KeyframeEase(0, 92)], [new KeyframeEase(0, 26)]);
+        } catch (blurEaseError) {}
+      }
+
+      if (scaleProp) {
+        try {
+          scaleProp.setValueAtTime(t0, [86, 86, 100]);
+          scaleProp.setValueAtTime(t1, [108, 108, 100]);
+          scaleProp.setValueAtTime(t2, [97, 97, 100]);
+          scaleProp.setValueAtTime(t3, [100, 100, 100]);
+        } catch (scale3dError) {
+          scaleProp.setValueAtTime(t0, [86, 86]);
+          scaleProp.setValueAtTime(t1, [108, 108]);
+          scaleProp.setValueAtTime(t2, [97, 97]);
+          scaleProp.setValueAtTime(t3, [100, 100]);
+        }
+        setFourKeyBounceEase(scaleProp);
+      }
+
+      if (rotationProp) {
+        rotationProp.setValueAtTime(t0, settings.rotationStart);
+        rotationProp.setValueAtTime(t1, 7);
+        rotationProp.setValueAtTime(t2, -2);
+        rotationProp.setValueAtTime(t3, 0);
+        setFourKeyBounceEase(rotationProp);
       }
     }
 
@@ -598,7 +856,7 @@ var rdzTools = (function () {
     comp.motionBlur = true;
   }
 
-  function centerAnchorPoint(layer) {
+  function moveAnchorPoint(layer, xFactor, yFactor) {
     if (!layer.sourceRectAtTime) {
       throw new Error("Layer does not support sourceRectAtTime.");
     }
@@ -607,12 +865,23 @@ var rdzTools = (function () {
     var anchor = getTransformProp(layer, "Anchor Point");
     var position = getTransformProp(layer, "Position");
     var currentAnchor = anchor.value;
-    var newAnchor = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+    var newAnchor = [rect.left + rect.width * xFactor, rect.top + rect.height * yFactor];
+    if (currentAnchor.length > 2) {
+      newAnchor.push(currentAnchor[2]);
+    }
     var delta = [newAnchor[0] - currentAnchor[0], newAnchor[1] - currentAnchor[1]];
     var currentPosition = position.value;
+    var nextPosition = [currentPosition[0] + delta[0], currentPosition[1] + delta[1]];
 
     anchor.setValue(newAnchor);
-    position.setValue([currentPosition[0] + delta[0], currentPosition[1] + delta[1]]);
+    if (currentPosition.length > 2) {
+      nextPosition.push(currentPosition[2]);
+    }
+    position.setValue(nextPosition);
+  }
+
+  function centerAnchorPoint(layer) {
+    moveAnchorPoint(layer, 0.5, 0.5);
   }
 
   function createControlNull(comp) {
@@ -629,6 +898,82 @@ var rdzTools = (function () {
     comp.motionBlur = true;
   }
 
+  function centerLayerInComp(layer, comp) {
+    var position = getTransformProp(layer, "Position");
+    if (!position) {
+      throw new Error("Layer is missing Position.");
+    }
+    var currentPosition = position.value;
+    var nextPosition = [comp.width / 2, comp.height / 2];
+    if (currentPosition.length > 2) {
+      nextPosition.push(currentPosition[2]);
+    }
+    position.setValue(nextPosition);
+  }
+
+  function precomposeSelectedLayers(comp) {
+    var selectedLayers = requireSelectedLayers(comp);
+    var indices = [];
+    for (var i = 0; i < selectedLayers.length; i += 1) {
+      indices.push(selectedLayers[i].index);
+    }
+    indices.sort(function (a, b) { return a - b; });
+    var name = "rdz_Precomp_" + Math.round(new Date().getTime() / 1000);
+    comp.layers.precompose(indices, name, true);
+    return selectedLayers.length;
+  }
+
+  function saveCurrentFrame(comp) {
+    var folder = Folder.desktop || Folder.myDocuments;
+    var file = new File(folder.fsName + "/rdzTools_" + comp.name.replace(/[\\\/:\*\?\"\<\>\|]/g, "_") + "_" + Math.round(comp.time * comp.frameRate) + ".png");
+    if (!comp.saveFrameToPng) {
+      throw new Error("saveFrameToPng is not available in this After Effects version.");
+    }
+    comp.saveFrameToPng(comp.time, file);
+    return file.fsName;
+  }
+
+  function fitLayerToComp(layer, comp) {
+    var scale = getTransformProp(layer, "Scale");
+    if (!scale || !layer.sourceRectAtTime) {
+      throw new Error("Layer cannot be fit to comp.");
+    }
+    var rect = layer.sourceRectAtTime(comp.time, false);
+    var width = rect.width || layer.width || 1;
+    var height = rect.height || layer.height || 1;
+    var fitScale = Math.min(comp.width / width, comp.height / height) * 100;
+    var currentScale = scale.value;
+    var nextScale = currentScale.length > 2 ? [fitScale, fitScale, currentScale[2]] : [fitScale, fitScale];
+    scale.setValue(nextScale);
+  }
+
+  function freezeLayerAtCurrentFrame(layer, comp) {
+    if (layer.canSetTimeRemapEnabled === false) {
+      throw new Error("Layer cannot enable time remapping.");
+    }
+    layer.timeRemapEnabled = true;
+    var timeRemap = layer.property("ADBE Time Remapping");
+    if (!timeRemap) {
+      throw new Error("Could not find Time Remap.");
+    }
+    var sourceTime = timeRemap.valueAtTime(comp.time, false);
+    timeRemap.expression = sourceTime.toFixed(5);
+    timeRemap.expressionEnabled = true;
+  }
+
+  function sequenceSelectedLayers(comp) {
+    var layers = requireSelectedLayers(comp);
+    layers.sort(function (a, b) { return b.index - a.index; });
+    var cursor = comp.time;
+    for (var i = 0; i < layers.length; i += 1) {
+      var layer = layers[i];
+      var duration = Math.max(comp.frameDuration, layer.outPoint - layer.inPoint);
+      layer.startTime += cursor - layer.inPoint;
+      cursor += duration;
+    }
+    return layers.length;
+  }
+
   function normalizeBouceSettings(payload) {
     var amount = isNaN(payload.amount) ? 10 : Number(payload.amount);
     var duration = isNaN(payload.duration) ? 1 : Number(payload.duration);
@@ -643,15 +988,42 @@ var rdzTools = (function () {
     };
   }
 
-  function buildBouceExpression(settings) {
-    var amount = (settings.amount / 100).toFixed(4);
-    var duration = settings.duration.toFixed(4);
-    var chaos = (settings.chaos / 100).toFixed(4);
+  function addOrGetNamedEffect(layer, matchName, effectName) {
+    var effects = layer.property("ADBE Effect Parade");
+    if (!effects) {
+      throw new Error("Layer does not support effects.");
+    }
 
+    for (var i = 1; i <= effects.numProperties; i += 1) {
+      if (effects.property(i).name === effectName) {
+        return effects.property(i);
+      }
+    }
+
+    var effect = effects.addProperty(matchName);
+    effect.name = effectName;
+    return effect;
+  }
+
+  function setSliderControl(layer, name, value) {
+    var slider = addOrGetNamedEffect(layer, "ADBE Slider Control", name);
+    try {
+      slider.property(1).setValue(value);
+    } catch (sliderError) {}
+    return slider;
+  }
+
+  function ensureBouceControls(layer, settings) {
+    setSliderControl(layer, "rdzBounce", settings.amount);
+    setSliderControl(layer, "rdzBounce Duration", settings.duration);
+    setSliderControl(layer, "rdzBounce Chaos", settings.chaos);
+  }
+
+  function buildBouceExpression() {
     return "// rdzTools Bouce\n" +
-      "var amount = " + amount + ";\n" +
-      "var duration = " + duration + ";\n" +
-      "var chaos = " + chaos + ";\n" +
+      "var amount = effect(\"rdzBounce\")(\"Slider\") / 100;\n" +
+      "var duration = Math.max(0.001, effect(\"rdzBounce Duration\")(\"Slider\"));\n" +
+      "var chaos = effect(\"rdzBounce Chaos\")(\"Slider\") / 100;\n" +
       "var n = 0;\n" +
       "if (numKeys > 0) {\n" +
       "  n = nearestKey(time).index;\n" +
@@ -664,7 +1036,10 @@ var rdzTools = (function () {
       "    var freq = 2.8 + random(-1.2, 1.2) * chaos;\n" +
       "    var decay = 5.0 / Math.max(duration, 0.001);\n" +
       "    var v = velocityAtTime(key(n).time - thisComp.frameDuration / 10);\n" +
-      "    var bounce = v * amount * Math.sin(freq * t * 2 * Math.PI) / Math.exp(decay * t);\n" +
+      "    var progress = Math.min(1, Math.max(0, t / duration));\n" +
+      "    var tail = 1 - progress;\n" +
+      "    var envelope = tail * tail * (3 - 2 * tail);\n" +
+      "    var bounce = v * amount * envelope * Math.sin(freq * t * 2 * Math.PI) / Math.exp(decay * t);\n" +
       "    value + bounce;\n" +
       "  } else {\n" +
       "    value;\n" +
@@ -682,30 +1057,44 @@ var rdzTools = (function () {
 
     var applied = 0;
     var skipped = 0;
-    var expression = buildBouceExpression(settings);
+    var expression = buildBouceExpression();
+    var targets = ["Position", "Scale", "Rotation"];
 
     for (var i = 0; i < selectedLayers.length; i += 1) {
       var layer = selectedLayers[i];
-      var prop = getTransformProp(layer, settings.target);
-      if (!prop || prop.numKeys < 2) {
+
+      try {
+        ensureBouceControls(layer, settings);
+      } catch (controlsError) {
         skipped += 1;
         continue;
       }
 
-      try {
-        prop.expression = expression;
-        prop.expressionEnabled = true;
-        applied += 1;
-      } catch (expressionError) {
+      var appliedToLayer = false;
+      for (var targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+        var prop = getTransformProp(layer, targets[targetIndex]);
+        if (!prop || prop.numKeys < 2) {
+          continue;
+        }
+
+        try {
+          prop.expression = expression;
+          prop.expressionEnabled = true;
+          applied += 1;
+          appliedToLayer = true;
+        } catch (expressionError) {}
+      }
+
+      if (!appliedToLayer) {
         skipped += 1;
       }
     }
 
     if (applied === 0) {
-      return "Error: No selected layers had 2+ " + settings.target + " keyframes.";
+      return "Error: No selected layers had 2+ Position, Scale, or Rotation keyframes.";
     }
 
-    var message = "OK: Bouce applied to " + applied + " layer" + (applied === 1 ? "" : "s") + " on " + settings.target + ".";
+    var message = "OK: rdzBounce controls added and expression applied to " + applied + " propert" + (applied === 1 ? "y" : "ies") + ".";
     if (skipped > 0) {
       message += " Skipped " + skipped + ".";
     }
@@ -730,13 +1119,20 @@ var rdzTools = (function () {
     app.beginUndoGroup("rdzTools " + toolId);
 
     try {
-      if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn") {
+      if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn" || toolId === "charBounceIn") {
         var textLayer = getTextLayer(comp);
         if (!textLayer) {
           throw new Error("No text layer found in comp.");
         }
 
         var wordSettings = normalizeWordSettings(comp, payload);
+        if (toolId === "charBounceIn") {
+          wordSettings.scaleStart = isNaN(payload.scaleStart) ? 18 : Number(payload.scaleStart);
+          wordSettings.scaleOvershoot = isNaN(payload.scaleOvershoot) ? 148 : Number(payload.scaleOvershoot);
+          applyCharacterBounceAnimation(textLayer, comp, wordSettings);
+          return "OK: Applied " + toolId + " to " + textLayer.name + ".";
+        }
+
         var options = {};
 
         if (toolId === "wordBlurRight") { options = { offsetX: wordSettings.distance, offsetY: 0 }; }
@@ -749,8 +1145,9 @@ var rdzTools = (function () {
           wordSettings.scaleOvershoot = isNaN(payload.scaleOvershoot) ? 138 : Number(payload.scaleOvershoot);
         }
         if (toolId === "wordRotateIn") {
-          options = { offsetX: wordSettings.distance, offsetY: 0 };
-          wordSettings.rotationStart = isNaN(payload.rotationStart) ? -18 : Number(payload.rotationStart);
+          wordSettings.rotationStart = isNaN(payload.rotationStart) ? -26 : Number(payload.rotationStart);
+          applyWordRotateBounceAnimation(textLayer, comp, wordSettings);
+          return "OK: Applied " + toolId + " to " + textLayer.name + ".";
         }
 
         applyWordAnimation(textLayer, comp, wordSettings, options);
@@ -826,6 +1223,41 @@ var rdzTools = (function () {
         return applyBouce(comp, normalizeBouceSettings(payload));
       }
 
+      if (toolId === "anchorTopLeft" || toolId === "anchorTop" || toolId === "anchorTopRight" || toolId === "anchorLeft" || toolId === "anchorRight" || toolId === "anchorBottomLeft" || toolId === "anchorBottom" || toolId === "anchorBottomRight") {
+        var anchorTargets = {
+          anchorTopLeft: [0, 0],
+          anchorTop: [0.5, 0],
+          anchorTopRight: [1, 0],
+          anchorLeft: [0, 0.5],
+          anchorRight: [1, 0.5],
+          anchorBottomLeft: [0, 1],
+          anchorBottom: [0.5, 1],
+          anchorBottomRight: [1, 1]
+        };
+        var target = anchorTargets[toolId];
+        var targetAnchorLayers = applyToSelectedLayers(comp, function (layer) {
+          moveAnchorPoint(layer, target[0], target[1]);
+        });
+        return "OK: Moved anchors on " + targetAnchorLayers.length + " layer(s).";
+      }
+
+      if (toolId === "precomposeSelected") {
+        var precomposedCount = precomposeSelectedLayers(comp);
+        return "OK: Precomposed " + precomposedCount + " selected layer(s).";
+      }
+
+      if (toolId === "centerInComp") {
+        var centeredLayers = applyToSelectedLayers(comp, function (layer) {
+          centerLayerInComp(layer, comp);
+        });
+        return "OK: Centered " + centeredLayers.length + " layer(s) in comp.";
+      }
+
+      if (toolId === "saveFrame") {
+        var savedPath = saveCurrentFrame(comp);
+        return "OK: Saved frame to " + savedPath + ".";
+      }
+
       if (toolId === "centerAnchor") {
         var anchorLayers = applyToSelectedLayers(comp, centerAnchorPoint);
         return "OK: Centered anchors on " + anchorLayers.length + " layer(s).";
@@ -834,6 +1266,25 @@ var rdzTools = (function () {
       if (toolId === "createControlNull") {
         createControlNull(comp);
         return "OK: Created control null.";
+      }
+
+      if (toolId === "fitToComp") {
+        var fitLayers = applyToSelectedLayers(comp, function (layer) {
+          fitLayerToComp(layer, comp);
+        });
+        return "OK: Fit " + fitLayers.length + " layer(s) to comp.";
+      }
+
+      if (toolId === "freezeFrame") {
+        var freezeLayers = applyToSelectedLayers(comp, function (layer) {
+          freezeLayerAtCurrentFrame(layer, comp);
+        });
+        return "OK: Froze " + freezeLayers.length + " layer(s) at current frame.";
+      }
+
+      if (toolId === "sequenceLayers") {
+        var sequencedCount = sequenceSelectedLayers(comp);
+        return "OK: Sequenced " + sequencedCount + " layer(s).";
       }
 
       if (toolId === "enableMotionBlur") {

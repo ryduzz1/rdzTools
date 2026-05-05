@@ -1,11 +1,16 @@
 const SETTINGS_KEY = "rdzTools.toolSettings.v1";
 const FAVORITES_KEY = "rdzTools.favorites.v1";
 const FAVORITES_HINT_KEY = "rdzTools.favoritesHintDismissed.v1";
+const tabDefinitions = [
+  { id: "graphs", label: "Graphs" },
+  { id: "presets", label: "Presets" },
+  { id: "tools", label: "Tools" }
+];
 
 const tools = [
   {
     id: "wordBlurRight",
-    group: "Text Animation",
+    group: "Text In",
     title: "Word Blur In From Right",
     blurb: "Each word slides in from the right with opacity and blur.",
     sections: [
@@ -31,7 +36,7 @@ const tools = [
   },
   {
     id: "wordBlurLeft",
-    group: "Text Animation",
+    group: "Text In",
     title: "Word Blur In From Left",
     blurb: "Each word slides in from the left with opacity and blur.",
     sections: [
@@ -57,7 +62,7 @@ const tools = [
   },
   {
     id: "wordBlurUp",
-    group: "Text Animation",
+    group: "Text In",
     title: "Word Blur Up From Bottom",
     blurb: "Each word rises from below with opacity and blur.",
     sections: [
@@ -83,7 +88,7 @@ const tools = [
   },
   {
     id: "wordBlurDown",
-    group: "Text Animation",
+    group: "Text In",
     title: "Word Blur Down From Top",
     blurb: "Each word drops in from above with opacity and blur.",
     sections: [
@@ -109,7 +114,7 @@ const tools = [
   },
   {
     id: "wordRotateIn",
-    group: "Text Animation",
+    group: "Text In",
     title: "Word Rotate In",
     blurb: "Each word swings into place with rotation, offset, and opacity.",
     sections: [
@@ -126,8 +131,8 @@ const tools = [
         title: "Motion And Style",
         description: "Offset, rotate, and optionally blur each word into place.",
         fields: [
-          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "24" },
-          { id: "rotationStart", label: "Starting rotation (deg)", type: "number", defaultValue: "-18" },
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "30" },
+          { id: "rotationStart", label: "Starting rotation (deg)", type: "number", defaultValue: "-26" },
           { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "5", dependsOn: "blurEnabled" }
         ]
@@ -135,8 +140,33 @@ const tools = [
     ]
   },
   {
+    id: "charBounceIn",
+    group: "Text In",
+    title: "Character Bounce In",
+    blurb: "Each character pops in with a quick scale bounce and ease-out settle.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Use this for punchier type where you want each character to arrive with a little spring.",
+        fields: [
+          { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.32" },
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.035" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Bounce",
+        description: "Smaller start scale, bigger overshoot, then a fast ease-out into the final size.",
+        fields: [
+          { id: "scaleStart", label: "Starting scale (%)", type: "number", defaultValue: "18" },
+          { id: "scaleOvershoot", label: "Overshoot scale (%)", type: "number", defaultValue: "148" }
+        ]
+      }
+    ]
+  },
+  {
     id: "layerScalePop",
-    group: "Layer Animation",
+    group: "Layer In",
     title: "Layer glitch scale",
     blurb: "Whole-layer pop with a hidden frame and frame-tight squash.",
     sections: [
@@ -151,7 +181,7 @@ const tools = [
   },
   {
     id: "layerFadeUp",
-    group: "Layer Animation",
+    group: "Layer In",
     title: "Layer fade up",
     blurb: "Moves selected layers up into place with opacity.",
     sections: [
@@ -174,7 +204,7 @@ const tools = [
   },
   {
     id: "layerSlideRight",
-    group: "Layer Animation",
+    group: "Layer In",
     title: "Layer slide in from right",
     blurb: "Moves selected layers in horizontally from the right with opacity.",
     sections: [
@@ -197,7 +227,7 @@ const tools = [
   },
   {
     id: "layerSlideLeft",
-    group: "Layer Animation",
+    group: "Layer In",
     title: "Layer slide in from left",
     blurb: "Moves selected layers in horizontally from the left with opacity.",
     sections: [
@@ -220,7 +250,7 @@ const tools = [
   },
   {
     id: "layerRotatePop",
-    group: "Layer Animation",
+    group: "Layer In",
     title: "Layer rotate pop",
     blurb: "Adds a slight scale and rotation pop to selected layers.",
     sections: [
@@ -244,7 +274,7 @@ const tools = [
   },
   {
     id: "layerBlurFadeIn",
-    group: "Layer Animation",
+    group: "Layer In",
     title: "Layer blur fade in",
     blurb: "Adds a quick blur-and-opacity entrance to selected layers.",
     sections: [
@@ -340,26 +370,98 @@ const tools = [
     ]
   },
   {
+    id: "anchorTopLeft",
+    group: "Rigging",
+    title: "Anchor Top Left",
+    blurb: "Moves selected layer anchor points to the upper-left visual corner.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorTop",
+    group: "Rigging",
+    title: "Anchor Top",
+    blurb: "Moves selected layer anchor points to the top-center edge.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorTopRight",
+    group: "Rigging",
+    title: "Anchor Top Right",
+    blurb: "Moves selected layer anchor points to the upper-right visual corner.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorLeft",
+    group: "Rigging",
+    title: "Anchor Left",
+    blurb: "Moves selected layer anchor points to the left-center edge.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorRight",
+    group: "Rigging",
+    title: "Anchor Right",
+    blurb: "Moves selected layer anchor points to the right-center edge.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorBottomLeft",
+    group: "Rigging",
+    title: "Anchor Bottom Left",
+    blurb: "Moves selected layer anchor points to the lower-left visual corner.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorBottom",
+    group: "Rigging",
+    title: "Anchor Bottom",
+    blurb: "Moves selected layer anchor points to the bottom-center edge.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "anchorBottomRight",
+    group: "Rigging",
+    title: "Anchor Bottom Right",
+    blurb: "Moves selected layer anchor points to the lower-right visual corner.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "precomposeSelected",
+    group: "Rigging",
+    title: "Pre-Comp",
+    blurb: "Moves all selected layers into a new precomp.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "centerInComp",
+    group: "Rigging",
+    title: "Center In Comp",
+    blurb: "Moves selected layers to the center of the active composition.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "saveFrame",
+    group: "Rigging",
+    title: "Save Frame",
+    blurb: "Saves the current comp frame to the desktop as a PNG.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
     id: "bouce",
-    group: "Utility",
+    group: "Rigging",
     title: "Bouce",
-    blurb: "Adds an overshoot expression to existing transform keys.",
+    blurb: "Adds editable rdzBounce controls to keyed transform properties.",
     sections: [
       {
-        title: "Expression Setup",
-        description: "Choose which transform property gets the bounce expression and shape the feel.",
-        fields: [
-          { id: "target", label: "Apply bounce to", type: "select", defaultValue: "Position", options: ["Position", "Scale", "Rotation"] },
-          { id: "amount", label: "Amount", type: "range", defaultValue: 10, min: 0, max: 100, step: 1, suffix: "%" },
-          { id: "duration", label: "Duration", type: "range", defaultValue: 1, min: 0.05, max: 2, step: 0.05, suffix: "s" },
-          { id: "chaos", label: "Chaos", type: "range", defaultValue: 0, min: 0, max: 100, step: 1, suffix: "%" }
-        ]
+        title: "Action",
+        description: "No panel settings. This creates editable controls on the selected layer.",
+        fields: []
       }
     ]
   },
   {
     id: "centerAnchor",
-    group: "Utility",
+    group: "Rigging",
     title: "Center anchor",
     blurb: "Moves the anchor point to the visual center of selected layers.",
     sections: [
@@ -372,7 +474,7 @@ const tools = [
   },
   {
     id: "createControlNull",
-    group: "Utility",
+    group: "Rigging",
     title: "Create control null",
     blurb: "Creates a centered control null in the active composition.",
     sections: [
@@ -384,8 +486,29 @@ const tools = [
     ]
   },
   {
+    id: "fitToComp",
+    group: "Rigging",
+    title: "Fit to comp",
+    blurb: "Scales selected layers to fit inside the active comp.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "freezeFrame",
+    group: "Rigging",
+    title: "Freeze frame",
+    blurb: "Holds the selected layers on the current frame.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "sequenceLayers",
+    group: "Rigging",
+    title: "Sequence layers",
+    blurb: "Offsets selected layers one after another from the playhead.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
     id: "enableMotionBlur",
-    group: "Utility",
+    group: "Rigging",
     title: "Enable motion blur",
     blurb: "Turns on motion blur for selected layers and the active composition.",
     sections: [
@@ -399,6 +522,39 @@ const tools = [
 ];
 
 const toolMap = Object.fromEntries(tools.map((tool) => [tool.id, tool]));
+const anchorTools = [
+  ["anchorTopLeft", "tl"],
+  ["anchorTop", "tc"],
+  ["anchorTopRight", "tr"],
+  ["anchorLeft", "ml"],
+  ["centerAnchor", "mc"],
+  ["anchorRight", "mr"],
+  ["anchorBottomLeft", "bl"],
+  ["anchorBottom", "bc"],
+  ["anchorBottomRight", "br"]
+];
+const primaryToolButtons = [
+  { id: "precomposeSelected", icon: "precomp" },
+  { id: "centerInComp", icon: "center" },
+  { id: "saveFrame", icon: "save" }
+];
+const compactToolButtons = [
+  { id: "freezeFrame", label: "FRZ" },
+  { id: "fitToComp", label: "FIT" },
+  { id: "lookSoftShadow", label: "DSH" },
+  { id: "centerAnchor", label: "ADJ" },
+  { id: "enableMotionBlur", label: "MIR" },
+  { id: "sequenceLayers", label: "SOL" },
+  { id: "lookLongShadow", label: "SHA" },
+  { id: "createControlNull", label: "NUL" },
+  { id: "bouce", label: "BNC" },
+  { id: "charBounceIn", label: "TXT" },
+  { id: "lookLiquidGlass", label: "GLS" },
+  { id: "lookBevelLite", label: "BVL" },
+  { id: "layerBlurFadeIn", label: "BLR" },
+  { id: "centerInComp", label: "CTR" },
+  { id: "saveFrame", label: "PNG" }
+];
 const bridge = getBridge();
 
 let activeToolId = tools[0].id;
@@ -413,6 +569,7 @@ let dragGhostOffset = { x: 0, y: 0 };
 let suppressNextClick = false;
 let hasRenderedListOnce = false;
 let favoritesHintDismissed = loadFavoritesHintDismissed();
+let activeTabId = "presets";
 
 const toolList = document.getElementById("toolList");
 const fieldMount = document.getElementById("fieldMount");
@@ -420,6 +577,9 @@ const sheetGroup = document.getElementById("sheetGroup");
 const sheetTitle = document.getElementById("sheetTitle");
 const sheetDescription = document.getElementById("sheetDescription");
 const settingsOverlay = document.getElementById("settingsOverlay");
+const tabBar = document.getElementById("tabBar");
+const applyButton = document.getElementById("applyTool");
+const actionbar = document.getElementById("actionbar");
 
 function getBridge() {
   if (typeof window.__adobe_cep__ !== "undefined") {
@@ -487,6 +647,59 @@ function persistFavoritesHintDismissed() {
   window.localStorage.setItem(FAVORITES_HINT_KEY, favoritesHintDismissed ? "true" : "false");
 }
 
+function toolBelongsToTab(tool, tabId) {
+  if (tabId === "presets") {
+    return tool.group === "Text In" || tool.group === "Layer In" || tool.group === "Looks";
+  }
+  if (tabId === "tools") {
+    return tool.group === "Rigging";
+  }
+  return false;
+}
+
+function getVisibleToolsForTab(tabId) {
+  return tools.filter((tool) => toolBelongsToTab(tool, tabId));
+}
+
+function getFirstVisibleToolId(tabId) {
+  const visible = getVisibleToolsForTab(tabId);
+  return visible.length ? visible[0].id : null;
+}
+
+function syncTabBar() {
+  tabBar.querySelectorAll("[data-tab-id]").forEach((button) => {
+    const isActive = button.dataset.tabId === activeTabId;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+}
+
+function syncActionState() {
+  const showActions = activeTabId === "presets";
+  actionbar.hidden = !showActions;
+  applyButton.disabled = !activeToolId || !showActions;
+}
+
+function ensureActiveToolIsVisible() {
+  if (activeTabId !== "presets") {
+    activeToolId = null;
+    return;
+  }
+  if (activeToolId && toolBelongsToTab(toolMap[activeToolId], activeTabId)) {
+    return;
+  }
+  activeToolId = getFirstVisibleToolId(activeTabId);
+}
+
+function setActiveTab(tabId) {
+  activeTabId = tabId;
+  ensureActiveToolIsVisible();
+  syncTabBar();
+  renderToolList();
+  syncActiveToolRow();
+  syncActionState();
+}
+
 function getToolSettings(toolId) {
   const tool = toolMap[toolId];
   const defaults = {};
@@ -504,12 +717,36 @@ function getToolSettings(toolId) {
 function hasCustomSettings(toolId) {
   const tool = toolMap[toolId];
   const saved = savedSettings[toolId];
-  if (!saved || !tool) {
+  return hasCustomSettingsFromPayload(toolId, saved);
+}
+
+function normalizeFieldValueForCompare(field, value) {
+  if (value === undefined) {
+    return value;
+  }
+
+  if (field.type === "number" || field.type === "range") {
+    return Number(value);
+  }
+
+  if (field.type === "checkbox") {
+    return value === true;
+  }
+
+  return String(value);
+}
+
+function hasCustomSettingsFromPayload(toolId, payload) {
+  const tool = toolMap[toolId];
+  if (!payload || !tool) {
     return false;
   }
 
   for (const field of tool.sections.flatMap((section) => section.fields)) {
-    if (saved[field.id] !== undefined && saved[field.id] !== field.defaultValue) {
+    if (
+      payload[field.id] !== undefined &&
+      normalizeFieldValueForCompare(field, payload[field.id]) !== normalizeFieldValueForCompare(field, field.defaultValue)
+    ) {
       return true;
     }
   }
@@ -610,6 +847,57 @@ function toolRowMarkup(tool, options) {
   `;
 }
 
+function toolTileMarkup(tool) {
+  const animationDelay = hasRenderedListOnce ? "" : `animation-delay:${Math.min(180, indexOfTool(tool.id) * 22)}ms`;
+
+  return `
+    <button class="tool-tile ${rowAnimationClass()}" data-run-tool="${tool.id}" style="${animationDelay}">
+      <span class="tool-tile-title">${tool.title}</span>
+      <span class="tool-tile-copy">${tool.blurb}</span>
+    </button>
+  `;
+}
+
+function primaryCommandMarkup(entry) {
+  const tool = toolMap[entry.id];
+  return `
+    <button class="prime-command" data-run-tool="${entry.id}" aria-label="${tool.title}">
+      <span class="prime-icon prime-icon-${entry.icon}" aria-hidden="true"></span>
+      <span>${tool.title}</span>
+    </button>
+  `;
+}
+
+function compactCommandMarkup(entry) {
+  const tool = toolMap[entry.id];
+  return `
+    <button class="compact-command" data-run-tool="${entry.id}" title="${tool.title}" aria-label="${tool.title}">
+      ${entry.label}
+    </button>
+  `;
+}
+
+function renderToolsPanel() {
+  return `
+    <section class="tools-panel">
+      <div class="tools-hero">
+        <div class="anchor-pad" aria-label="Anchor point tools">
+          ${anchorTools
+            .map(([toolId, position]) => `<button class="anchor-button anchor-${position}" data-run-tool="${toolId}" title="${toolMap[toolId].title}" aria-label="${toolMap[toolId].title}"><span></span></button>`)
+            .join("")}
+        </div>
+        <div class="prime-command-stack">
+          ${primaryToolButtons.map(primaryCommandMarkup).join("")}
+        </div>
+      </div>
+      <div class="tools-divider"></div>
+      <div class="compact-command-grid">
+        ${compactToolButtons.map(compactCommandMarkup).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function setStatus(message, tone = "normal") {
   return { message: message, tone: tone };
 }
@@ -619,8 +907,27 @@ function escapeString(value) {
 }
 
 function renderToolList() {
+  const visibleTools = getVisibleToolsForTab(activeTabId);
+  if (activeTabId === "graphs") {
+    toolList.innerHTML = `
+      <section class="empty-panel">
+        <div class="empty-kicker">Graphs</div>
+        <h2>Graph tools are coming next.</h2>
+        <p>This tab is reserved for curve helpers, graph shaping, and timing tools.</p>
+      </section>
+    `;
+    hasRenderedListOnce = true;
+    return;
+  }
+
+  if (activeTabId === "tools") {
+    toolList.innerHTML = renderToolsPanel();
+    hasRenderedListOnce = true;
+    return;
+  }
+
   const groups = new Map();
-  for (const tool of tools) {
+  for (const tool of visibleTools) {
     if (isFavorite(tool.id)) {
       continue;
     }
@@ -630,7 +937,7 @@ function renderToolList() {
     groups.get(tool.group).push(tool);
   }
 
-  const favoriteTools = favoriteToolIds.map((toolId) => toolMap[toolId]).filter(Boolean);
+  const favoriteTools = favoriteToolIds.map((toolId) => toolMap[toolId]).filter((tool) => tool && toolBelongsToTab(tool, activeTabId));
 
   const favoritesMarkup = `
     <section class="group-block favorites-block" data-favorites-block="true">
@@ -684,6 +991,26 @@ function clearDropMarkers() {
   toolList.querySelectorAll("[data-favorites-block].drop-target").forEach((block) => block.classList.remove("drop-target"));
   document.querySelectorAll(".category-block.drop-target").forEach((block) => {
     block.classList.remove("drop-target");
+  });
+}
+
+function syncToolEditedState(toolId, isEdited) {
+  document.querySelectorAll(`.tool-row[data-tool-id="${toolId}"]`).forEach((row) => {
+    row.classList.toggle("has-custom-settings", isEdited);
+    const actions = row.querySelector(".tool-actions");
+    if (!actions) {
+      return;
+    }
+
+    let indicator = actions.querySelector(".tool-indicator");
+    if (isEdited && !indicator) {
+      indicator = document.createElement("span");
+      indicator.className = "tool-indicator";
+      indicator.setAttribute("aria-hidden", "true");
+      actions.insertBefore(indicator, actions.firstChild);
+    } else if (!isEdited && indicator) {
+      indicator.remove();
+    }
   });
 }
 
@@ -1016,6 +1343,7 @@ function resetSettingsForEditingTool() {
     return;
   }
 
+  syncToolEditedState(editingToolId, false);
   delete savedSettings[editingToolId];
   persistSettings();
   openSettings(editingToolId);
@@ -1028,6 +1356,7 @@ function saveSettingsForEditingTool() {
 
   savedSettings[editingToolId] = collectSettingsFromSheet();
   persistSettings();
+  syncToolEditedState(editingToolId, hasCustomSettings(editingToolId));
   setStatus(`Saved settings for ${toolMap[editingToolId].title}.`, "success");
   closeSettings();
 }
@@ -1037,6 +1366,9 @@ async function refreshSelection() {
 }
 
 async function applyActiveTool() {
+  if (!activeToolId) {
+    return;
+  }
   const payload = getToolSettings(activeToolId);
   const payloadString = escapeString(JSON.stringify(payload));
 
@@ -1047,12 +1379,28 @@ async function applyActiveTool() {
   await refreshSelection();
 }
 
+async function applyToolById(toolId) {
+  const payload = getToolSettings(toolId);
+  const payloadString = escapeString(JSON.stringify(payload));
+  const result = await bridge.eval(`rdzTools.applyTool("${escapeString(toolId)}","${payloadString}")`);
+  const ok = typeof result === "string" && result.indexOf("OK:") === 0;
+  setStatus(result, ok ? "success" : "error");
+  await refreshSelection();
+}
+
 document.getElementById("refreshSelection").addEventListener("click", refreshSelection);
-document.getElementById("applyTool").addEventListener("click", applyActiveTool);
+applyButton.addEventListener("click", applyActiveTool);
 document.getElementById("closeSettings").addEventListener("click", closeSettings);
 document.getElementById("saveSettings").addEventListener("click", saveSettingsForEditingTool);
 document.getElementById("resetSettings").addEventListener("click", resetSettingsForEditingTool);
 document.querySelector(".overlay-backdrop").addEventListener("click", closeSettings);
+tabBar.addEventListener("click", (event) => {
+  const tabButton = event.target.closest("[data-tab-id]");
+  if (!tabButton || tabButton.dataset.tabId === activeTabId) {
+    return;
+  }
+  setActiveTab(tabButton.dataset.tabId);
+});
 
 toolList.addEventListener("click", (event) => {
   if (suppressNextClick) {
@@ -1074,6 +1422,12 @@ toolList.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-edit-tool]");
   if (editButton) {
     openSettings(editButton.dataset.editTool);
+    return;
+  }
+
+  const runToolButton = event.target.closest("[data-run-tool]");
+  if (runToolButton) {
+    applyToolById(runToolButton.dataset.runTool);
     return;
   }
 
@@ -1192,8 +1546,13 @@ fieldMount.addEventListener("input", (event) => {
 
   syncRangeValue(fieldId);
   syncDependentFields();
+  if (editingToolId) {
+    syncToolEditedState(editingToolId, hasCustomSettingsFromPayload(editingToolId, collectSettingsFromSheet()));
+  }
 });
 
 renderToolList();
+syncTabBar();
 syncActiveToolRow();
+syncActionState();
 refreshSelection();

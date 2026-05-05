@@ -9,12 +9,18 @@
   <body>
     <div class="shell shell-enter">
       <header class="topbar">
-        <h1>rdzTools</h1>
-        <div class="topbar-actions">
-          <button id="refreshSelection" class="ghost">Refresh</button>
-          <button id="applyTool" class="apply">Apply</button>
+        <div id="tabBar" class="tabbar" role="tablist" aria-label="rdzTools sections">
+          <button class="tab-button active" data-tab-id="graphs" role="tab" aria-selected="true">Graphs</button>
+          <button class="tab-button" data-tab-id="presets" role="tab" aria-selected="false">Presets</button>
+          <button class="tab-button" data-tab-id="tools" role="tab" aria-selected="false">Tools</button>
         </div>
       </header>
+
+      <div id="actionbar" class="actionbar">
+        <h1>rdzTools</h1>
+        <button id="refreshSelection" class="ghost">Refresh</button>
+        <button id="applyTool" class="apply">Apply</button>
+      </div>
 
       <main class="list-shell">
         <div id="toolList" class="tool-list"></div>
