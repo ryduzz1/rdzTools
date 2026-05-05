@@ -648,8 +648,9 @@ const tools = [
         fields: [
           { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "2.5" },
           { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
-          { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.42" },
-          { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.18" },
+          { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.18" },
+          { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.62" },
+          { id: "characterScatter", label: "Character scatter (px/sec)", type: "number", defaultValue: "160" },
           { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "2" }
         ]
       },
@@ -738,6 +739,13 @@ const tools = [
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
   },
   {
+    id: "splitTextCharacters",
+    group: "Rigging",
+    title: "Split characters",
+    blurb: "Converts a selected text layer into one positioned text layer per character.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
     id: "reverseLayers",
     group: "Rigging",
     title: "Reverse layers",
@@ -774,7 +782,7 @@ const wideToolButtons = [
   { id: "rigidBodySim" }
 ];
 const compactToolButtons = [
-  { id: "freezeFrame", label: "FRZ" },
+  { id: "reverseLayers", label: "REV" },
   { id: "fitToComp", label: "FIT" },
   { id: "bounce", label: "BNC" },
   { id: "createControlNull", label: "NUL" },
@@ -782,7 +790,7 @@ const compactToolButtons = [
   { id: "sequenceLayers", label: "SEQ" },
   { id: "duplicateLayers", label: "DUP" },
   { id: "splitLayers", label: "SPL" },
-  { id: "reverseLayers", label: "REV" },
+  { id: "splitTextCharacters", label: "CHR" },
   { id: "clearExpressions", label: "CLR" }
 ];
 const graphBounds = { x: 14, y: 10, width: 340, height: 276 };
@@ -804,6 +812,8 @@ let hasRenderedListOnce = false;
 let favoritesHintDismissed = loadFavoritesHintDismissed();
 let activeTabId = "presets";
 let toolHelpCloseTimer = null;
+let selectedPhysicsState = { allSelectedArePhysics: false, selectedCount: 0 };
+let physicsSelectionPollInFlight = false;
 
 const toolList = document.getElementById("toolList");
 const fieldMount = document.getElementById("fieldMount");
@@ -1142,6 +1152,9 @@ function compactCommandMarkup(entry) {
 function wideCommandMarkup(entry) {
   const tool = toolMap[entry.id];
   const isEdited = hasCustomSettings(entry.id);
+  const isPhysicsRerender = entry.id === "rigidBodySim" && selectedPhysicsState.allSelectedArePhysics;
+  const buttonLabel = isPhysicsRerender ? "Re-render Simulation" : tool.title;
+  const runAttribute = isPhysicsRerender ? 'data-rerender-physics="true"' : `data-run-tool="${entry.id}"`;
   return `
     <div class="wide-command-row ${isEdited ? "has-custom-settings" : ""}">
       <button class="wide-edit-hotspot" data-edit-tool="${entry.id}" aria-label="Edit ${tool.title} settings">
@@ -1150,9 +1163,9 @@ function wideCommandMarkup(entry) {
           <path d="M10.8 3.7l1.5 1.5"></path>
         </svg>
       </button>
-      <button class="wide-command" data-run-tool="${entry.id}" aria-label="${tool.title}">
+      <button class="wide-command" ${runAttribute} aria-label="${buttonLabel}">
         <span class="wide-icon wide-icon-physics" aria-hidden="true"></span>
-        <span>${tool.title}</span>
+        <span>${buttonLabel}</span>
         <span class="wide-edit-slot" aria-hidden="true">
           <svg class="edit-icon" viewBox="0 0 16 16">
             <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
@@ -1814,6 +1827,53 @@ async function refreshSelection() {
   await bridge.eval("rdzTools.getSelectionSummary()");
 }
 
+async function refreshPhysicsSelectionState() {
+  if (physicsSelectionPollInFlight) {
+    return;
+  }
+
+  physicsSelectionPollInFlight = true;
+  try {
+    const result = await bridge.eval("rdzTools.getSelectedPhysicsState()");
+    const parsed = JSON.parse(result);
+    const nextState = {
+      allSelectedArePhysics: !!parsed.allSelectedArePhysics,
+      selectedCount: Number(parsed.selectedCount) || 0
+    };
+    if (
+      nextState.allSelectedArePhysics !== selectedPhysicsState.allSelectedArePhysics ||
+      nextState.selectedCount !== selectedPhysicsState.selectedCount
+    ) {
+      selectedPhysicsState = nextState;
+      if (activeTabId === "tools") {
+        renderToolList();
+      }
+    }
+  } catch (error) {
+    selectedPhysicsState = { allSelectedArePhysics: false, selectedCount: 0 };
+  } finally {
+    physicsSelectionPollInFlight = false;
+  }
+}
+
+function startPhysicsSelectionRefresh() {
+  refreshPhysicsSelectionState();
+  window.setInterval(refreshPhysicsSelectionState, 1200);
+}
+
+async function rerenderPhysicsBySelection() {
+  setStatus("Re-rendering physics simulation...");
+  const rerenderResult = await bridge.eval("rdzTools.rerenderSelectedPhysics()");
+  try {
+    const rerendered = JSON.parse(rerenderResult);
+    setStatus(rerendered.message || "OK: Re-rendered physics.", rerendered.ok ? "success" : "error");
+  } catch (error) {
+    setStatus(rerenderResult || "Error: Could not re-render physics.", "error");
+  }
+  await refreshSelection();
+  await refreshPhysicsSelectionState();
+}
+
 async function applyActiveTool() {
   if (!activeToolId) {
     return;
@@ -1826,6 +1886,7 @@ async function applyActiveTool() {
   const ok = typeof result === "string" && result.indexOf("OK:") === 0;
   setStatus(result, ok ? "success" : "error");
   await refreshSelection();
+  await refreshPhysicsSelectionState();
 }
 
 async function applyToolById(toolId) {
@@ -1835,6 +1896,7 @@ async function applyToolById(toolId) {
   const ok = typeof result === "string" && result.indexOf("OK:") === 0;
   setStatus(result, ok ? "success" : "error");
   await refreshSelection();
+  await refreshPhysicsSelectionState();
 }
 
 async function applyActiveGraph() {
@@ -1988,6 +2050,11 @@ toolList.addEventListener("click", (event) => {
 
   if (event.target.closest("[data-graph-apply]")) {
     applyActiveGraph();
+    return;
+  }
+
+  if (event.target.closest("[data-rerender-physics]")) {
+    rerenderPhysicsBySelection();
     return;
   }
 
@@ -2145,3 +2212,4 @@ syncTabBar();
 syncActiveToolRow();
 syncActionState();
 refreshSelection();
+startPhysicsSelectionRefresh();
