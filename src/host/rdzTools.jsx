@@ -1236,7 +1236,7 @@ var rdzTools = (function () {
     return cleared;
   }
 
-  function normalizeBouceSettings(payload) {
+  function normalizeBounceSettings(payload) {
     var amount = isNaN(payload.amount) ? 10 : Number(payload.amount);
     var duration = isNaN(payload.duration) ? 1 : Number(payload.duration);
     var chaos = isNaN(payload.chaos) ? 0 : Number(payload.chaos);
@@ -1275,14 +1275,14 @@ var rdzTools = (function () {
     return slider;
   }
 
-  function ensureBouceControls(layer, settings) {
+  function ensureBounceControls(layer, settings) {
     setSliderControl(layer, "rdzBounce", settings.amount);
     setSliderControl(layer, "rdzBounce Duration", settings.duration);
     setSliderControl(layer, "rdzBounce Chaos", settings.chaos);
   }
 
-  function buildBouceExpression() {
-    return "// rdzTools Bouce\n" +
+  function buildBounceExpression() {
+    return "// rdzTools Bounce\n" +
       "var amount = effect(\"rdzBounce\")(\"Slider\") / 100;\n" +
       "var duration = Math.max(0.001, effect(\"rdzBounce Duration\")(\"Slider\"));\n" +
       "var chaos = effect(\"rdzBounce Chaos\")(\"Slider\") / 100;\n" +
@@ -1311,7 +1311,7 @@ var rdzTools = (function () {
       "}\n";
   }
 
-  function applyBouce(comp, settings) {
+  function applyBounce(comp, settings) {
     var selectedLayers = getSelectedLayers(comp);
     if (!selectedLayers.length) {
       return "Error: Select at least one layer with keyframes.";
@@ -1319,14 +1319,14 @@ var rdzTools = (function () {
 
     var applied = 0;
     var skipped = 0;
-    var expression = buildBouceExpression();
+    var expression = buildBounceExpression();
     var targets = ["Position", "Scale", "Rotation"];
 
     for (var i = 0; i < selectedLayers.length; i += 1) {
       var layer = selectedLayers[i];
 
       try {
-        ensureBouceControls(layer, settings);
+        ensureBounceControls(layer, settings);
       } catch (controlsError) {
         skipped += 1;
         continue;
@@ -1401,11 +1401,6 @@ var rdzTools = (function () {
         if (toolId === "wordBlurLeft") { options = { offsetX: -wordSettings.distance, offsetY: 0 }; }
         if (toolId === "wordBlurUp") { options = { offsetX: 0, offsetY: wordSettings.distance }; }
         if (toolId === "wordBlurDown") { options = { offsetX: 0, offsetY: -wordSettings.distance }; }
-        if (toolId === "wordPopIn") {
-          options = { offsetX: 0, offsetY: 0, scaleBounce: true };
-          wordSettings.scaleStart = isNaN(payload.scaleStart) ? 25 : Number(payload.scaleStart);
-          wordSettings.scaleOvershoot = isNaN(payload.scaleOvershoot) ? 138 : Number(payload.scaleOvershoot);
-        }
         if (toolId === "wordRotateIn") {
           wordSettings.rotationStart = isNaN(payload.rotationStart) ? -26 : Number(payload.rotationStart);
           applyWordRotateBounceAnimation(textLayer, comp, wordSettings);
@@ -1481,8 +1476,8 @@ var rdzTools = (function () {
         return "OK: Applied " + toolId + " to " + lookLayers.length + " layer(s).";
       }
 
-      if (toolId === "bouce") {
-        return applyBouce(comp, normalizeBouceSettings(payload));
+      if (toolId === "bounce") {
+        return applyBounce(comp, normalizeBounceSettings(payload));
       }
 
       if (toolId === "anchorTopLeft" || toolId === "anchorTop" || toolId === "anchorTopRight" || toolId === "anchorLeft" || toolId === "anchorRight" || toolId === "anchorBottomLeft" || toolId === "anchorBottom" || toolId === "anchorBottomRight") {

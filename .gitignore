@@ -1,3 +1,6 @@
+.DS_Store
 dist/
+release/
 *.zip
+*.log
 node_modules/

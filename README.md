@@ -85,9 +85,35 @@ It should avoid feeling like:
 - a dry utility panel
 - a preset dump with no point of view
 
+## Build And Package
+
+Build the CEP extension folder:
+
+```sh
+npm run build
+```
+
+Create a release zip from a fresh build:
+
+```sh
+npm run package
+```
+
+The release artifact is written to `release/rdzTools-<version>.zip`. Generated `dist/` and `release/` output is intentionally ignored by git.
+
+## Manual CEP Install
+
+For local testing, copy the built `dist/rdzTools` folder into the Adobe CEP extensions directory for your platform, then enable unsigned CEP extensions if you are testing an unsigned build.
+
+Common extension directories:
+
+- macOS: `~/Library/Application Support/Adobe/CEP/extensions/`
+- Windows: `%APPDATA%\Adobe\CEP\extensions\`
+
+After copying the folder, restart After Effects and open `Window > Extensions > rdzTools`.
+
 ## Status
 
 `rdzTools` is currently in the early scaffold stage and is being shaped around this product direction.
 
 The implementation will change. The goal should stay consistent: make it easier to get cool-looking motion and styling into a comp quickly.
-

@@ -448,9 +448,9 @@ const tools = [
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
   },
   {
-    id: "bouce",
+    id: "bounce",
     group: "Rigging",
-    title: "Bouce",
+    title: "Bounce",
     blurb: "Adds editable rdzBounce controls to keyed transform properties.",
     sections: [
       {
@@ -570,7 +570,7 @@ const primaryToolButtons = [
 const compactToolButtons = [
   { id: "freezeFrame", label: "FRZ" },
   { id: "fitToComp", label: "FIT" },
-  { id: "bouce", label: "BNC" },
+  { id: "bounce", label: "BNC" },
   { id: "createControlNull", label: "NUL" },
   { id: "enableMotionBlur", label: "MBL" },
   { id: "sequenceLayers", label: "SEQ" },

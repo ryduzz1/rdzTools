@@ -5,6 +5,7 @@
   "description": "Starter After Effects CEP panel scaffold for animation and look presets.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "clean": "node scripts/build.mjs --clean"
+    "clean": "node scripts/build.mjs --clean",
+    "package": "node scripts/package.mjs"
   }
 }
