@@ -931,6 +931,27 @@ var rdzTools = (function () {
     return false;
   }
 
+  function removeEffectsByMatchName(layer, matchName) {
+    var effects = layer.property("ADBE Effect Parade");
+    if (!effects) {
+      return 0;
+    }
+
+    var removed = 0;
+    for (var i = effects.numProperties; i >= 1; i -= 1) {
+      var effect = effects.property(i);
+      if (effect && effect.matchName === matchName) {
+        effect.remove();
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  function sanitizeLayerName(value) {
+    return String(value || "Layer").replace(/[\\\/:\*\?\"\<\>\|]/g, "_");
+  }
+
   function normalizeLookSettings(payload) {
     return {
       opacity: isNaN(payload.opacity) ? 42 : Number(payload.opacity),
@@ -973,28 +994,93 @@ var rdzTools = (function () {
     setEffectValue(glow, [4, "Glow Intensity"], Math.max(0, settings.glowIntensity));
   }
 
+  function setVectorStrokeValues(stroke, settings) {
+    if (!stroke) {
+      return;
+    }
+
+    setEffectValue(stroke, ["ADBE Vector Stroke Color", "Color", 2], [1, 1, 1, 1]);
+    setEffectValue(stroke, ["ADBE Vector Stroke Opacity", "Opacity", 4], 65);
+    setEffectValue(stroke, ["ADBE Vector Stroke Width", "Stroke Width", 5], Math.max(0.5, Math.min(4, settings.strokeWidth || 1.5)));
+    setEffectValue(stroke, ["ADBE Vector Stroke Line Cap", "Line Cap", 7], 2);
+    setEffectValue(stroke, ["ADBE Vector Stroke Line Join", "Line Join", 8], 2);
+  }
+
+  function vectorContentsHasShape(contents) {
+    if (!contents) {
+      return false;
+    }
+
+    for (var i = 1; i <= contents.numProperties; i += 1) {
+      var item = contents.property(i);
+      if (item && item.matchName && item.matchName.indexOf("ADBE Vector Shape") === 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function addOverlayStrokeToContents(contents, settings) {
+    if (!contents) {
+      return 0;
+    }
+
+    var added = 0;
+    if (vectorContentsHasShape(contents)) {
+      try {
+        setVectorStrokeValues(contents.addProperty("ADBE Vector Graphic - Stroke"), settings);
+        added += 1;
+      } catch (strokeError) {}
+    }
+
+    for (var i = 1; i <= contents.numProperties; i += 1) {
+      var item = contents.property(i);
+      if (item && item.matchName === "ADBE Vector Group") {
+        added += addOverlayStrokeToContents(item.property("ADBE Vectors Group"), settings);
+      }
+    }
+    return added;
+  }
+
+  function addOverlayStroke(layer, settings) {
+    var contents = layer.property("ADBE Root Vectors Group");
+    if (!contents) {
+      throw new Error("Liquid glass stroke requires a shape layer.");
+    }
+
+    if (addOverlayStrokeToContents(contents, settings) === 0) {
+      setVectorStrokeValues(contents.addProperty("ADBE Vector Graphic - Stroke"), settings);
+    }
+  }
+
   function applyLiquidGlassLook(layer, settings) {
-    var blur = addOrGetEffect(layer, "ADBE Gaussian Blur 2");
-    setEffectValue(blur, [1], Math.max(0, settings.blurAmt));
-    setEffectValue(blur, [2], 1);
+    var comp = layer.containingComp;
+    var sourceName = sanitizeLayerName(layer.name);
+    var blurAmount = Math.max(1, settings.blurAmt || 3);
 
-    applyBevelLiteLook(layer, {
-      thickness: settings.bevelThickness,
-      lightAngle: 125,
-      lightIntensity: 0.85
-    });
+    layer.adjustmentLayer = true;
+    layer.name = sourceName + "_LG_Blur";
 
-    applyDropShadowLook(layer, {
-      opacity: settings.shadowOpacity,
-      distance: settings.shadowDistance,
-      softness: settings.shadowSoftness,
-      angle: 120
-    });
+    removeEffectsByMatchName(layer, "ADBE Gaussian Blur 2");
+    removeEffectsByMatchName(layer, "ADBE Fast Box Blur");
+    var blur = addOrGetEffectFlexible(layer, "ADBE Fast Box Blur", "Fast Box Blur");
+    setEffectValue(blur, [1, "Blur Radius"], blurAmount);
+    setEffectValue(blur, [2, "Iterations"], 2);
+    setEffectValue(blur, [3, "Repeat Edge Pixels"], 1);
 
-    applyGlowLook(layer, {
-      glowRadius: settings.glowRadius,
-      glowIntensity: settings.glowIntensity
-    });
+    var strokeLayer = layer.duplicate();
+    strokeLayer.name = sourceName + "_LG_Stroke";
+    strokeLayer.adjustmentLayer = false;
+    removeEffectsByMatchName(strokeLayer, "ADBE Fast Box Blur");
+    addOverlayStroke(strokeLayer, { strokeWidth: 1.5 });
+    try {
+      strokeLayer.blendingMode = BlendingMode.OVERLAY;
+    } catch (blendError) {}
+
+    var indices = [layer.index, strokeLayer.index];
+    indices.sort(function (a, b) { return a - b; });
+    var precompName = "rdz_LiquidGlass_" + sourceName;
+    comp.layers.precompose(indices, precompName, true);
   }
 
   function applyLayerBlurFadeIn(layer, comp, settings) {

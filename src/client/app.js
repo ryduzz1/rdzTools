@@ -353,19 +353,13 @@ const tools = [
     id: "lookLiquidGlass",
     group: "Looks",
     title: "Liquid glass",
-    blurb: "Builds a soft glassy stack with bevel, blur, glow, and shadow.",
+    blurb: "Builds a precomposed blur adjustment and overlay stroke glass layer.",
     sections: [
       {
         title: "Glass Stack",
-        description: "This is a first-pass native-AE glass treatment for glossy panels and soft UI chips.",
+        description: "Turns the selected shape into a blur adjustment, duplicates it for an overlay stroke, then precomposes the pair.",
         fields: [
-          { id: "blurAmt", label: "Surface blur (px)", type: "number", defaultValue: "3" },
-          { id: "bevelThickness", label: "Bevel thickness", type: "number", defaultValue: "7" },
-          { id: "glowRadius", label: "Glow radius", type: "number", defaultValue: "22" },
-          { id: "glowIntensity", label: "Glow intensity", type: "number", defaultValue: "0.45" },
-          { id: "shadowOpacity", label: "Shadow opacity (%)", type: "number", defaultValue: "24" },
-          { id: "shadowDistance", label: "Shadow distance (px)", type: "number", defaultValue: "10" },
-          { id: "shadowSoftness", label: "Shadow softness (px)", type: "number", defaultValue: "24" }
+          { id: "blurAmt", label: "Fast box blur (px)", type: "number", defaultValue: "3" }
         ]
       }
     ]
