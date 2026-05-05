@@ -2364,6 +2364,14 @@ var rdzTools = (function () {
     return closingSpeed < restingThreshold ? 0 : settings.bounce;
   }
 
+  function getBodyBounce(body, settings, velocityAlongNormal) {
+    var bounce = getRestingBounce(settings, velocityAlongNormal);
+    if (body.isTextBody) {
+      return bounce * 0.35;
+    }
+    return bounce;
+  }
+
   function dampBodyMotion(body, settings, stepDt) {
     var characterDamping = body.isCharacterBody ? 0.28 : 0;
     var linearDamping = Math.max(0.82, 1 - (0.34 + characterDamping + settings.friction * 0.38) * stepDt);
@@ -2486,12 +2494,12 @@ var rdzTools = (function () {
       var rCrossN = cross2(rx, ry, normalX, normalY);
       var denominator = body.invMass + (rCrossN * rCrossN) * body.invInertia;
       if (denominator > 0) {
-        var impulse = -(1 + getRestingBounce(settings, velocityAlongNormal)) * velocityAlongNormal / denominator;
+        var impulse = -(1 + getBodyBounce(body, settings, velocityAlongNormal)) * velocityAlongNormal / denominator;
         var impulseX = impulse * normalX;
         var impulseY = impulse * normalY;
         body.vx += impulseX * body.invMass;
         body.vy += impulseY * body.invMass;
-        applyAngularImpulse(body, rx, ry, impulseX, impulseY, 1);
+        applyAngularImpulse(body, rx, ry, impulseX, impulseY, body.isTextBody ? 0.35 : 1);
       }
     }
 
@@ -2509,7 +2517,7 @@ var rdzTools = (function () {
       var frictionY = frictionImpulse * tangentY;
       body.vx += frictionX * body.invMass;
       body.vy += frictionY * body.invMass;
-      applyAngularImpulse(body, rx, ry, frictionX, frictionY, 1);
+      applyAngularImpulse(body, rx, ry, frictionX, frictionY, body.isTextBody ? 0.35 : 1);
     }
   }
 
@@ -2750,8 +2758,8 @@ var rdzTools = (function () {
     }
   }
 
-  function sampleRigidBodies(bodies, time, comp, settings) {
-    if (settings && settings.boundedByComp) {
+  function sampleRigidBodies(bodies, time, comp, settings, clampToBounds) {
+    if (clampToBounds !== false && settings && settings.boundedByComp) {
       clampAllBodiesToComp(bodies, comp);
     }
 
@@ -2982,10 +2990,7 @@ var rdzTools = (function () {
     var totalFrames = Math.max(1, Math.round(settings.duration / dt));
     var startTime = settings.startSec;
     primeCharacterBodies(bodies, settings);
-    if (settings.boundedByComp) {
-      clampAllBodiesToComp(bodies, comp);
-    }
-    sampleRigidBodies(bodies, startTime, comp, settings);
+    sampleRigidBodies(bodies, startTime, comp, settings, false);
 
     for (var frame = 1; frame <= totalFrames; frame += 1) {
       var time = startTime + frame * dt;
