@@ -7,7 +7,7 @@
 
 An After Effects CEP panel for fast motion presets, graph easing, and layer cleanup tools.
 
-Created by `ryder`.
+Created by `ryduzz`.
 
 </div>
 
