@@ -3,87 +3,55 @@
 # rdzTools
 
 [![After Effects](https://img.shields.io/badge/After%20Effects-Plugin-9999FF?style=for-the-badge&logo=adobeaftereffects&logoColor=white)](https://www.adobe.com/products/aftereffects.html)
-[![Focus](https://img.shields.io/badge/Focus-Text%20%26%20Looks-1F2937?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
-[![Direction](https://img.shields.io/badge/Direction-Tactile%20Motion-F59E0B?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
-[![Status](https://img.shields.io/badge/Status-In%20Progress-34D399?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
+[![Status](https://img.shields.io/badge/Status-Beta-34D399?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
 
-A tactile After Effects tool for applying cool animation, stronger styling, and fast visual polish.
+An After Effects CEP panel for fast motion presets, graph easing, and layer cleanup tools.
 
 Created by `ryder`.
 
 </div>
 
-## What rdzTools Is
+## What It Does
 
-`rdzTools` is meant to be an easy, satisfying After Effects plugin for people who want stronger motion and better-looking layers without building every setup from scratch.
+`rdzTools` is a compact After Effects extension with three main areas:
 
-The goal is not to be a giant technical toolbox.
+- **Graphs** for reading and applying custom easing curves to selected keyframes
+- **Presets** for applying text, layer entrance, and look treatments
+- **Tools** for common rigging, timing, anchor, and layer utilities
 
-The goal is to make it fast to:
+The current version is focused on getting useful motion and styling onto selected layers quickly without rebuilding the same After Effects setups by hand.
 
-- add interesting text animation
-- give flat shapes more depth and finish
-- apply stylized looks in a click or two
-- build motion that feels designed instead of default
+## Current Features
 
-## The Direction
+### Graphs
 
-`rdzTools` is aiming for a workflow that feels immediate and tactile.
+- Draw and apply a custom keyframe easing curve
+- Read easing from selected keyframes
+- Reset the curve back to a default linear shape
 
-You pick a layer, try a move, stack a look, and get to something promising quickly.
+### Presets
 
-It should feel closer to browsing a shelf of actually good motion-design moves than digging through settings, effect menus, and repetitive setup steps.
+- Word blur text reveals from the left, right, top, or bottom
+- Word rotate entrance
+- Character bounce entrance
+- Layer fade, slide, scale, rotate, and blur entrances
+- Soft shadow, long shadow, bevel, and liquid glass look presets
+- Per-preset settings with saved custom values
+- Favorites for quick preset access
 
-## What It Should Be Good At
+### Tools
 
-### Text Animation
-
-- clean title movement
-- punchier entrances
-- more expressive type motion
-- presets that feel useful right away, then become tweakable when needed
-
-### Looks And Layer Styling
-
-- bevels, shadows, glow, glass, and other finish passes
-- ways to make simple shapes feel more dimensional
-- more art-directed treatments instead of generic utility effects
-
-### Fast Visual Polish
-
-- quick preset application
-- stackable styling ideas
-- a smoother path from rough comp to something that already has taste
-
-## The Bigger Goal
-
-The long-term point of `rdzTools` is to help make After Effects feel a little less slow and mechanical when you are experimenting.
-
-Instead of rebuilding the same attractive setups over and over, the plugin should let you reach for a preset, get a strong starting point, and keep moving.
-
-That applies to:
-
-- text systems
-- shape treatments
-- UI-style motion
-- glossy or glassy materials
-- general comp polish
-
-## Product Feel
-
-The plugin should lean toward:
-
-- easy to use
-- visually opinionated
-- fun to click through
-- fast to understand
-- strong defaults
-
-It should avoid feeling like:
-
-- a pile of unlabeled controls
-- a dry utility panel
-- a preset dump with no point of view
+- Move anchors to corners, edges, or center
+- Center selected layers in the comp
+- Precompose selected layers
+- Fit selected layers to comp
+- Freeze frames
+- Sequence, duplicate, split, and reverse layers
+- Enable motion blur
+- Add Bounce controls to keyed transform properties
+- Create a centered control null
+- Save the current frame as a PNG
+- Clear transform expressions
 
 ## Build And Package
 
@@ -99,11 +67,17 @@ Create a release zip from a fresh build:
 npm run package
 ```
 
+If `npm` is not available but Node is installed, run the package script directly:
+
+```sh
+node scripts/package.mjs
+```
+
 The release artifact is written to `release/rdzTools-<version>.zip`. Generated `dist/` and `release/` output is intentionally ignored by git.
 
 ## Manual CEP Install
 
-For local testing, copy the built `dist/rdzTools` folder into the Adobe CEP extensions directory for your platform, then enable unsigned CEP extensions if you are testing an unsigned build.
+Unzip the release package and place the `rdzTools` folder in the Adobe CEP extensions directory for your platform.
 
 Common extension directories:
 
@@ -112,8 +86,19 @@ Common extension directories:
 
 After copying the folder, restart After Effects and open `Window > Extensions > rdzTools`.
 
-## Status
+## Unsigned Extension Setup
 
-`rdzTools` is currently in the early scaffold stage and is being shaped around this product direction.
+This beta package is currently unsigned. Testers may need to enable unsigned CEP extensions before After Effects will load the panel.
 
-The implementation will change. The goal should stay consistent: make it easier to get cool-looking motion and styling into a comp quickly.
+On macOS, enable CEP debug mode for the relevant CSXS versions:
+
+```sh
+defaults write com.adobe.CSXS.11 PlayerDebugMode 1
+defaults write com.adobe.CSXS.12 PlayerDebugMode 1
+```
+
+Restart After Effects after changing CEP settings.
+
+## Release Status
+
+`rdzTools` is currently a beta CEP package. The current panel has passed a manual After Effects smoke test, but public distribution should use a signed ZXP or provide clear unsigned-install instructions.
