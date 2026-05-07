@@ -191,6 +191,33 @@ var rdzTools = (function () {
     } catch (easeError) {}
   }
 
+  function getKeyIndexAtTime(prop, time) {
+    if (!prop || !prop.numKeys) {
+      return 0;
+    }
+
+    for (var keyIndex = 1; keyIndex <= prop.numKeys; keyIndex += 1) {
+      try {
+        if (Math.abs(prop.keyTime(keyIndex) - time) < 0.0001) {
+          return keyIndex;
+        }
+      } catch (keyError) {}
+    }
+
+    return 0;
+  }
+
+  function setLinearKeyAtTime(prop, time) {
+    var keyIndex = getKeyIndexAtTime(prop, time);
+    if (!keyIndex) {
+      return;
+    }
+
+    try {
+      prop.setInterpolationTypeAtKey(keyIndex, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+    } catch (interpolationError) {}
+  }
+
   function key2(prop, t0, v0, t1, v1, easeSetter) {
     if (!prop) {
       return;
@@ -1028,6 +1055,37 @@ var rdzTools = (function () {
     comp.motionBlur = true;
   }
 
+  function applyLayerBounceUp(layer, comp, settings) {
+    var positionProp = getTransformProp(layer, "Position");
+    var opacityProp = getTransformProp(layer, "Opacity");
+    if (!positionProp) {
+      throw new Error("Selected layer is missing Position.");
+    }
+
+    var t0 = settings.startSec;
+    var t1 = t0 + Math.max(comp.frameDuration * 5, 0.001);
+    var currentPosition = positionProp.value;
+    var startPosition = [currentPosition[0], currentPosition[1] + settings.distance];
+    if (currentPosition.length > 2) {
+      startPosition.push(currentPosition[2]);
+    }
+
+    positionProp.setValueAtTime(t0, startPosition);
+    positionProp.setValueAtTime(t1, currentPosition);
+    setLinearKeyAtTime(positionProp, t0);
+    setLinearKeyAtTime(positionProp, t1);
+
+    if (opacityProp) {
+      opacityProp.setValueAtTime(t0, 0);
+      opacityProp.setValueAtTime(t1, 100);
+      setLinearKeyAtTime(opacityProp, t0);
+      setLinearKeyAtTime(opacityProp, t1);
+    }
+
+    layer.motionBlur = true;
+    comp.motionBlur = true;
+  }
+
   function addOrGetEffect(layer, matchName) {
     var effects = layer.property("ADBE Effect Parade");
     if (!effects) {
@@ -1836,7 +1894,7 @@ var rdzTools = (function () {
   function normalizeRigidBodySettings(comp, payload) {
     return {
       startSec: parseStartTime(comp, payload.startSec),
-      duration: Math.max(comp.frameDuration, Math.min(10, isNaN(payload.duration) ? 2.5 : Number(payload.duration))),
+      duration: Math.max(comp.frameDuration, Math.min(120, isNaN(payload.duration) ? 30 : Number(payload.duration))),
       gravity: Math.max(0, Math.min(6000, isNaN(payload.gravity) ? 1800 : Number(payload.gravity))),
       bounce: Math.max(0, Math.min(1, isNaN(payload.bounce) ? 0.18 : Number(payload.bounce))),
       friction: Math.max(0, Math.min(1, isNaN(payload.friction) ? 0.62 : Number(payload.friction))),
@@ -2741,9 +2799,9 @@ var rdzTools = (function () {
   function updateBodySleepState(body, comp, settings) {
     var speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy);
     var angularSpeed = Math.abs(body.angularVelocity || 0);
-    var speedThreshold = body.isCharacterBody ? Math.max(12, settings.gravity * 0.006) : Math.max(8, settings.gravity * 0.004);
-    var angularThreshold = body.isCharacterBody ? 10 : 6;
-    var requiredSleepFrames = body.isCharacterBody ? 8 : 12;
+    var speedThreshold = body.isCharacterBody ? 2.5 : 1.5;
+    var angularThreshold = body.isCharacterBody ? 2 : 1;
+    var requiredSleepFrames = body.isCharacterBody ? 24 : 30;
     if (speed < speedThreshold && angularSpeed < angularThreshold && isBodyStablySupportedByFloor(body, comp)) {
       body.sleepFrames += 1;
       if (body.sleepFrames > requiredSleepFrames) {
@@ -2756,6 +2814,18 @@ var rdzTools = (function () {
       body.sleepFrames = 0;
       body.sleeping = false;
     }
+  }
+
+  function areAllBodiesSleeping(bodies) {
+    if (!bodies.length) {
+      return false;
+    }
+    for (var i = 0; i < bodies.length; i += 1) {
+      if (!bodies[i].sleeping) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function sampleRigidBodies(bodies, time, comp, settings, clampToBounds) {
@@ -3049,8 +3119,12 @@ var rdzTools = (function () {
         }
       }
 
-      if (frame === totalFrames || frame % settings.keyEvery === 0) {
+      var settled = areAllBodiesSleeping(bodies);
+      if (settled || frame === totalFrames || frame % settings.keyEvery === 0) {
         sampleRigidBodies(bodies, time, comp, settings);
+      }
+      if (settled) {
+        break;
       }
     }
 
@@ -3196,19 +3270,14 @@ var rdzTools = (function () {
       "}\n";
   }
 
-  function applyBounce(comp, settings) {
-    var selectedLayers = getSelectedLayers(comp);
-    if (!selectedLayers.length) {
-      return "Error: Select at least one layer with keyframes.";
-    }
-
+  function applyBounceToLayers(layers, settings) {
     var applied = 0;
     var skipped = 0;
     var expression = buildBounceExpression();
     var targets = ["Position", "Scale", "Rotation"];
 
-    for (var i = 0; i < selectedLayers.length; i += 1) {
-      var layer = selectedLayers[i];
+    for (var i = 0; i < layers.length; i += 1) {
+      var layer = layers[i];
 
       try {
         ensureBounceControls(layer, settings);
@@ -3246,6 +3315,15 @@ var rdzTools = (function () {
       message += " Skipped " + skipped + ".";
     }
     return message;
+  }
+
+  function applyBounce(comp, settings) {
+    var selectedLayers = getSelectedLayers(comp);
+    if (!selectedLayers.length) {
+      return "Error: Select at least one layer with keyframes.";
+    }
+
+    return applyBounceToLayers(selectedLayers, settings);
   }
 
   function applyToSelectedLayers(comp, fn) {
@@ -3331,13 +3409,15 @@ var rdzTools = (function () {
         return "OK: Applied layer glitch scale to " + glitchLayers.length + " layer(s).";
       }
 
-      if (toolId === "layerFadeUp" || toolId === "layerSlideRight" || toolId === "layerSlideLeft" || toolId === "layerRotatePop") {
+      if (toolId === "layerFadeUp" || toolId === "layerBounceUp" || toolId === "layerSlideRight" || toolId === "layerSlideLeft" || toolId === "layerRotatePop") {
         var motionLayers = requireSelectedLayers(comp);
         var layerSettings = normalizeLayerSettings(comp, payload);
 
         for (var m = 0; m < motionLayers.length; m += 1) {
           if (toolId === "layerFadeUp") {
             applyLayerEntrance(motionLayers[m], comp, layerSettings, { offsetX: 0, offsetY: layerSettings.distance });
+          } else if (toolId === "layerBounceUp") {
+            applyLayerBounceUp(motionLayers[m], comp, layerSettings);
           } else if (toolId === "layerSlideRight") {
             applyLayerEntrance(motionLayers[m], comp, layerSettings, { offsetX: layerSettings.distance, offsetY: 0 });
           } else if (toolId === "layerSlideLeft") {
@@ -3349,6 +3429,13 @@ var rdzTools = (function () {
               scaleStart: layerSettings.scaleStart,
               rotationStart: layerSettings.rotationStart
             });
+          }
+        }
+
+        if (toolId === "layerBounceUp") {
+          var bounceMessage = applyBounceToLayers(motionLayers, normalizeBounceSettings({}));
+          if (bounceMessage.indexOf("OK:") !== 0) {
+            return bounceMessage;
           }
         }
         return "OK: Applied " + toolId + " to " + motionLayers.length + " layer(s).";

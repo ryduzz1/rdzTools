@@ -386,6 +386,28 @@ const tools = [
     ]
   },
   {
+    id: "layerBounceUp",
+    group: "Layer In",
+    title: "Layer bounce up",
+    blurb: "Adds a tight upward position move, then applies the shared rdzBounce effect.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Creates two close linear keyframes from the playhead or entered time.",
+        fields: [
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Motion",
+        description: "Control how far the layer starts below its final position.",
+        fields: [
+          { id: "distance", label: "Vertical offset (px)", type: "number", defaultValue: "70" }
+        ]
+      }
+    ]
+  },
+  {
     id: "layerSlideRight",
     group: "Layer In",
     title: "Layer slide in from right",
@@ -646,7 +668,7 @@ const tools = [
         title: "Simulation",
         description: "Bakes Position and Rotation keyframes from the current time.",
         fields: [
-          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "2.5" },
+          { id: "duration", label: "Max duration (sec)", type: "number", defaultValue: "30" },
           { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
           { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.18" },
           { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.62" },
