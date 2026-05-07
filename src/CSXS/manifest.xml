@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest Version="7.0"
   ExtensionBundleId="com.ryder.rdztools"
-  ExtensionBundleVersion="0.1.0"
+  ExtensionBundleVersion="1.0.0"
   ExtensionBundleName="rdzTools"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.ryder.rdztools.panel" Version="0.1.0" />
+    <Extension Id="com.ryder.rdztools.panel" Version="1.0.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

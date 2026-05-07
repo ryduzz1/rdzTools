@@ -1,8 +1,8 @@
 {
   "name": "rdztools",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Starter After Effects CEP panel scaffold for animation and look presets.",
+  "description": "After Effects CEP extension for motion presets, easing graphs, physics tools, and layer utilities.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "clean": "node scripts/build.mjs --clean",

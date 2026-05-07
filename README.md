@@ -3,9 +3,10 @@
 # rdzTools
 
 [![After Effects](https://img.shields.io/badge/After%20Effects-Plugin-9999FF?style=for-the-badge&logo=adobeaftereffects&logoColor=white)](https://www.adobe.com/products/aftereffects.html)
-[![Status](https://img.shields.io/badge/Status-Beta-34D399?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
+[![Status](https://img.shields.io/badge/Status-Release%20Ready-22C55E?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
+[![Version](https://img.shields.io/badge/Version-1.0.0-111827?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
 
-An After Effects CEP panel for fast motion presets, graph easing, and layer cleanup tools.
+An After Effects CEP extension for motion presets, easing graphs, physics tools, and layer cleanup workflows.
 
 Created by `ryduzz`.
 
@@ -13,15 +14,15 @@ Created by `ryduzz`.
 
 ## What It Does
 
-`rdzTools` is a compact After Effects extension with three main areas:
+`rdzTools` is a production-ready After Effects extension with three main areas:
 
 - **Graphs** for reading and applying custom easing curves to selected keyframes
 - **Presets** for applying text, layer entrance, and look treatments
 - **Tools** for common rigging, timing, anchor, and layer utilities
 
-The current version is focused on getting useful motion and styling onto selected layers quickly without rebuilding the same After Effects setups by hand.
+It is built for getting useful motion, styling, physics, and cleanup operations onto selected layers quickly without rebuilding the same After Effects setups by hand.
 
-## Current Features
+## Features
 
 ### Graphs
 
@@ -88,7 +89,7 @@ After copying the folder, restart After Effects and open `Window > Extensions > 
 
 ## Unsigned Extension Setup
 
-This beta package is currently unsigned. Testers may need to enable unsigned CEP extensions before After Effects will load the panel.
+The zip package is currently unsigned. If installing from the zip instead of a signed ZXP, enable unsigned CEP extensions before After Effects will load the panel.
 
 On macOS, enable CEP debug mode for the relevant CSXS versions:
 
@@ -101,4 +102,4 @@ Restart After Effects after changing CEP settings.
 
 ## Release Status
 
-`rdzTools` is currently a beta CEP package. The current panel has passed a manual After Effects smoke test, but public distribution should use a signed ZXP or provide clear unsigned-install instructions.
+`rdzTools` is a release-ready CEP extension. The package can be distributed as the generated zip with unsigned-install instructions, or as a signed ZXP for a smoother public install path.
