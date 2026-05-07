@@ -348,6 +348,35 @@ const tools = [
     ]
   },
   {
+    id: "textExplodeOut",
+    group: "Text Out",
+    title: "Text Explode Out",
+    blurb: "Splits text into character layers, then launches them outward with rigid body physics.",
+    sections: [
+      {
+        title: "Explosion",
+        description: "Bakes the character split and outward rigid body motion from the current time.",
+        fields: [
+          { id: "duration", label: "Max duration (sec)", type: "number", defaultValue: "1.8" },
+          { id: "characterScatter", label: "Outward momentum (px/sec)", type: "number", defaultValue: "1050" },
+          { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
+          { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.2" },
+          { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.58" },
+          { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "1" },
+          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+        ]
+      },
+      {
+        title: "Bounds And Collisions",
+        description: "Keep comp-edge bounds off by default so letters can leave frame.",
+        fields: [
+          { id: "boundedByComp", label: "Bound by comp edges", type: "checkbox", defaultValue: false },
+          { id: "interactWithEachOther", label: "Characters interact with each other", type: "checkbox", defaultValue: true }
+        ]
+      }
+    ]
+  },
+  {
     id: "layerScalePop",
     group: "Layer In",
     title: "Layer glitch scale",
@@ -668,11 +697,10 @@ const tools = [
         title: "Simulation",
         description: "Bakes Position and Rotation keyframes from the current time.",
         fields: [
-          { id: "duration", label: "Max duration (sec)", type: "number", defaultValue: "30" },
+          { id: "safetyLimit", label: "Safety limit (sec)", type: "number", defaultValue: "15" },
           { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
           { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.18" },
           { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.62" },
-          { id: "characterScatter", label: "Character scatter (px/sec)", type: "number", defaultValue: "160" },
           { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "2" }
         ]
       },
@@ -997,14 +1025,24 @@ function setActiveTab(tabId) {
 function getToolSettings(toolId) {
   const tool = toolMap[toolId];
   const defaults = {};
+  const allowedFields = new Set();
 
   for (const field of tool.sections.flatMap((section) => section.fields)) {
+    allowedFields.add(field.id);
     defaults[field.id] = field.defaultValue;
+  }
+
+  const saved = savedSettings[toolId] || {};
+  const currentSaved = {};
+  for (const [key, value] of Object.entries(saved)) {
+    if (allowedFields.has(key)) {
+      currentSaved[key] = value;
+    }
   }
 
   return {
     ...defaults,
-    ...(savedSettings[toolId] || {})
+    ...currentSaved
   };
 }
 

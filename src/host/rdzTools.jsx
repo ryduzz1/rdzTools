@@ -1972,16 +1972,23 @@ var rdzTools = (function () {
   }
 
   function normalizeRigidBodySettings(comp, payload) {
+    var durationValue = payload.safetyLimit;
+    if (isNaN(durationValue)) {
+      durationValue = payload.duration;
+    }
     return {
       startSec: parseStartTime(comp, payload.startSec),
-      duration: Math.max(comp.frameDuration, Math.min(120, isNaN(payload.duration) ? 30 : Number(payload.duration))),
+      duration: Math.max(comp.frameDuration, Math.min(15, isNaN(durationValue) ? 15 : Number(durationValue))),
       gravity: Math.max(0, Math.min(6000, isNaN(payload.gravity) ? 1800 : Number(payload.gravity))),
       bounce: Math.max(0, Math.min(1, isNaN(payload.bounce) ? 0.18 : Number(payload.bounce))),
       friction: Math.max(0, Math.min(1, isNaN(payload.friction) ? 0.62 : Number(payload.friction))),
-      characterScatter: Math.max(0, Math.min(900, isNaN(payload.characterScatter) ? 160 : Number(payload.characterScatter))),
+      characterScatter: Math.max(0, Math.min(2400, isNaN(payload.characterScatter) ? 160 : Number(payload.characterScatter))),
       keyEvery: Math.max(1, Math.min(12, Math.round(isNaN(payload.keyEvery) ? 2 : Number(payload.keyEvery)))),
       boundedByComp: payload.boundedByComp !== false,
-      interactWithEachOther: payload.interactWithEachOther !== false
+      interactWithEachOther: payload.interactWithEachOther !== false,
+      explodeOutward: payload.explodeOutward === true,
+      collisionScale: Math.max(1, Math.min(2, isNaN(payload.collisionScale) ? 1 : Number(payload.collisionScale))),
+      adaptiveDuration: payload.adaptiveDuration !== false
     };
   }
 
@@ -2117,8 +2124,10 @@ var rdzTools = (function () {
     var scale = scaleProp.value;
     var sx = Math.max(0.001, Math.abs(Number(scale[0]) || 100) / 100);
     var sy = Math.max(0.001, Math.abs(Number(scale[1]) || 100) / 100);
-    var width = Math.max(4, rect.width * sx);
-    var height = Math.max(4, rect.height * sy);
+    var isCharacterBody = isLikelySplitCharacterLayer(layer, rect);
+    var collisionScale = settings.explodeOutward && isCharacterBody ? settings.collisionScale : 1;
+    var width = Math.max(4, rect.width * sx * collisionScale);
+    var height = Math.max(4, rect.height * sy * collisionScale);
     var localOffsetX = (rect.left + rect.width / 2) * sx;
     var localOffsetY = (rect.top + rect.height / 2) * sy;
     var zValue = position.length > 2 ? position[2] : null;
@@ -2128,7 +2137,6 @@ var rdzTools = (function () {
     var radius = Math.max(width, height) / 2;
     var mass = Math.max(1, width * height);
     var inertia = shape === "circle" ? (0.5 * mass * radius * radius) : (mass * (width * width + height * height) / 12);
-    var isCharacterBody = isLikelySplitCharacterLayer(layer, rect);
     var isTextBody = layer.matchName === "ADBE Text Layer" && !isCharacterBody;
     var sourceIndex = rect.sourceIndex;
     if (sourceIndex === null || isNaN(sourceIndex)) {
@@ -2789,16 +2797,28 @@ var rdzTools = (function () {
     return x - Math.floor(x);
   }
 
-  function primeCharacterBodies(bodies, settings) {
+  function primeCharacterBodies(bodies, settings, comp) {
+    if (!settings.explodeOutward) {
+      return;
+    }
+
     var characterCount = 0;
+    var centerX = comp ? comp.width / 2 : 0;
+    var centerY = comp ? comp.height / 2 : 0;
+    var characterCenterX = 0;
+    var characterCenterY = 0;
     for (var i = 0; i < bodies.length; i += 1) {
       if (bodies[i].isCharacterBody) {
         characterCount += 1;
+        characterCenterX += bodies[i].x;
+        characterCenterY += bodies[i].y;
       }
     }
     if (characterCount < 2) {
       return;
     }
+    centerX = characterCenterX / characterCount;
+    centerY = characterCenterY / characterCount;
 
     for (var b = 0; b < bodies.length; b += 1) {
       var body = bodies[b];
@@ -2808,16 +2828,22 @@ var rdzTools = (function () {
       var seed = body.sourceIndex !== null ? body.sourceIndex : b;
       var scatter = settings.characterScatter;
       var angle = seededUnitValue(seed + 71) * Math.PI * 2;
-      var speed = scatter * (0.35 + seededUnitValue(seed + 113) * 0.65);
-      var xNudge = Math.cos(angle) * Math.min(2, body.width * 0.12);
-      var yNudge = Math.sin(angle) * Math.min(2, body.height * 0.12);
-      body.x += xNudge;
-      body.y += yNudge;
+      var dx = body.x - centerX;
+      var dy = body.y - centerY;
+      if (Math.abs(dx) + Math.abs(dy) > 0.001) {
+        var outwardLength = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
+        var randomAngle = seededUnitValue(seed + 71) * Math.PI * 2;
+        var randomWeight = 0.3 + seededUnitValue(seed + 191) * 0.22;
+        var vectorX = dx / outwardLength + Math.cos(randomAngle) * randomWeight;
+        var vectorY = dy / outwardLength + Math.sin(randomAngle) * randomWeight;
+        angle = Math.atan2(vectorY, vectorX);
+      }
+      var speed = scatter * (0.68 + seededUnitValue(seed + 113) * 0.32);
       body.startX = body.x;
       body.startY = body.y;
       body.vx = Math.cos(angle) * speed;
-      body.vy = Math.sin(angle) * speed * 0.45;
-      body.angularVelocity = (seededUnitValue(seed + 151) - 0.5) * Math.min(120, scatter * 0.45);
+      body.vy = Math.sin(angle) * speed;
+      body.angularVelocity = (seededUnitValue(seed + 151) - 0.5) * Math.min(520, scatter * 0.48);
     }
   }
 
@@ -2879,10 +2905,12 @@ var rdzTools = (function () {
   function updateBodySleepState(body, comp, settings) {
     var speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy);
     var angularSpeed = Math.abs(body.angularVelocity || 0);
-    var speedThreshold = body.isCharacterBody ? 2.5 : 1.5;
-    var angularThreshold = body.isCharacterBody ? 2 : 1;
-    var requiredSleepFrames = body.isCharacterBody ? 24 : 30;
-    if (speed < speedThreshold && angularSpeed < angularThreshold && isBodyStablySupportedByFloor(body, comp)) {
+    var speedThreshold = settings.adaptiveDuration ? (body.isCharacterBody ? 7.5 : 5) : (body.isCharacterBody ? 2.5 : 1.5);
+    var angularThreshold = settings.adaptiveDuration ? (body.isCharacterBody ? 8 : 5) : (body.isCharacterBody ? 2 : 1);
+    var requiredSleepFrames = settings.adaptiveDuration ? (body.isCharacterBody ? 12 : 16) : (body.isCharacterBody ? 24 : 30);
+    var stablySupported = isBodyStablySupportedByFloor(body, comp);
+    var motionSettled = settings.adaptiveDuration && body.age > 0.25;
+    if (speed < speedThreshold && angularSpeed < angularThreshold && (stablySupported || motionSettled)) {
       body.sleepFrames += 1;
       if (body.sleepFrames > requiredSleepFrames) {
         body.sleeping = true;
@@ -2927,8 +2955,10 @@ var rdzTools = (function () {
     removeAllKeys(body.positionProp);
     removeAllKeys(body.rotationProp);
 
+    var lastSampleTime = null;
     for (var i = 0; i < body.samples.length; i += 1) {
       var sample = body.samples[i];
+      lastSampleTime = sample.time;
       var rotatedOffset = rotatePoint(body.localCenterOffsetX, body.localCenterOffsetY, sample.rotation);
       var positionValue = [sample.x - rotatedOffset.x, sample.y - rotatedOffset.y];
       if (body.zValue !== null) {
@@ -2938,6 +2968,12 @@ var rdzTools = (function () {
       if (body.rotationProp) {
         body.rotationProp.setValueAtTime(sample.time, sample.rotation);
       }
+    }
+
+    if (lastSampleTime !== null) {
+      try {
+        body.layer.outPoint = Math.max(body.layer.outPoint, lastSampleTime + 0.001);
+      } catch (outPointError) {}
     }
   }
 
@@ -3139,8 +3175,13 @@ var rdzTools = (function () {
     var dt = comp.frameDuration;
     var totalFrames = Math.max(1, Math.round(settings.duration / dt));
     var startTime = settings.startSec;
-    primeCharacterBodies(bodies, settings);
-    sampleRigidBodies(bodies, startTime, comp, settings, false);
+    if (settings.explodeOutward) {
+      sampleRigidBodies(bodies, startTime, comp, settings, false);
+      primeCharacterBodies(bodies, settings, comp);
+    } else {
+      primeCharacterBodies(bodies, settings, comp);
+      sampleRigidBodies(bodies, startTime, comp, settings, false);
+    }
 
     for (var frame = 1; frame <= totalFrames; frame += 1) {
       var time = startTime + frame * dt;
@@ -3208,13 +3249,24 @@ var rdzTools = (function () {
       }
     }
 
+    var lastBakeTime = startTime;
     for (var bakeIndex = 0; bakeIndex < bodies.length; bakeIndex += 1) {
-      bakeRigidBodySamples(bodies[bakeIndex]);
-      bodies[bakeIndex].layer.motionBlur = true;
+      var bakedBody = bodies[bakeIndex];
+      if (bakedBody.samples.length > 0) {
+        lastBakeTime = Math.max(lastBakeTime, bakedBody.samples[bakedBody.samples.length - 1].time);
+      }
+      bakeRigidBodySamples(bakedBody);
+      try {
+        bakedBody.layer.outPoint = Math.max(bakedBody.layer.outPoint, lastBakeTime + comp.frameDuration);
+      } catch (bodyOutPointError) {}
+      bakedBody.layer.motionBlur = true;
       if (markLayers !== false) {
-        markLayerAsPhysics(bodies[bakeIndex].layer, settings);
+        markLayerAsPhysics(bakedBody.layer, settings);
       }
     }
+    try {
+      comp.duration = Math.max(comp.duration, lastBakeTime + comp.frameDuration);
+    } catch (compDurationError) {}
     comp.motionBlur = true;
 
     return "OK: Baked rigid body simulation to " + bodies.length + " layer(s).";
@@ -3222,6 +3274,40 @@ var rdzTools = (function () {
 
   function applyRigidBodySimulation(comp, settings) {
     return applyRigidBodySimulationToLayers(comp, requireSelectedLayers(comp), settings, true);
+  }
+
+  function applyTextExplodeOut(comp, payload) {
+    var textLayer = getTextLayer(comp);
+    if (!textLayer) {
+      throw new Error("No text layer found in comp.");
+    }
+
+    var characterCount = splitTextLayerCharacters(comp);
+    var characterLayers = getSelectedLayers(comp);
+    if (!characterLayers.length) {
+      throw new Error("Could not create character layers.");
+    }
+
+    var settings = normalizeRigidBodySettings(comp, {
+      startSec: payload.startSec,
+      duration: isNaN(payload.duration) ? 1.8 : Number(payload.duration),
+      gravity: isNaN(payload.gravity) ? 1800 : Number(payload.gravity),
+      bounce: isNaN(payload.bounce) ? 0.2 : Number(payload.bounce),
+      friction: isNaN(payload.friction) ? 0.58 : Number(payload.friction),
+      characterScatter: isNaN(payload.characterScatter) ? 1050 : Number(payload.characterScatter),
+      keyEvery: isNaN(payload.keyEvery) ? 1 : Number(payload.keyEvery),
+      boundedByComp: payload.boundedByComp === true,
+      interactWithEachOther: payload.interactWithEachOther !== false,
+      explodeOutward: true,
+      collisionScale: 1.38,
+      adaptiveDuration: false
+    });
+
+    var result = applyRigidBodySimulationToLayers(comp, characterLayers, settings, true);
+    if (result.indexOf("OK:") !== 0) {
+      return result;
+    }
+    return "OK: Split text into " + characterCount + " character layer(s) and baked outward explosion.";
   }
 
   function rerenderPhysics() {
@@ -3424,6 +3510,10 @@ var rdzTools = (function () {
     app.beginUndoGroup("rdzTools " + toolId);
 
     try {
+      if (toolId === "textExplodeOut") {
+        return applyTextExplodeOut(comp, payload);
+      }
+
       if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn" || toolId === "charBounceIn" || toolId === "wordBlurOutRight" || toolId === "wordBlurOutLeft" || toolId === "wordBlurOutUp" || toolId === "wordBlurOutDown" || toolId === "wordRotateOut" || toolId === "charShrinkOut" || toolId === "charScatterOut") {
         var textLayer = getTextLayer(comp);
         if (!textLayer) {
