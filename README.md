@@ -67,13 +67,21 @@ Create a distributable zip from a fresh build:
 npm run package
 ```
 
+Create a signed ZXP from a fresh build:
+
+```sh
+ZXP_PASSWORD="your-certificate-password" npm run zxp
+```
+
 If `npm` is not available but Node is installed, run the package script directly:
 
 ```sh
 node scripts/package.mjs
 ```
 
-The packaged artifact is written to `release/rdzTools-<version>.zip`. Generated `dist/` and `release/` output is intentionally ignored by git.
+The zip package is written to `release/rdzTools-<version>.zip`. The signed ZXP is written to `release/rdzTools-<version>.zxp`. Generated `dist/` and `release/` output is intentionally ignored by git.
+
+The ZXP script uses `/Users/ryder/Desktop/zxp-sign/ZXPSignCmd` and `certs/rdzTools.p12` by default. Override those paths with `ZXP_SIGN_CMD` or `ZXP_CERT` if needed. To timestamp the signature, pass `ZXP_TSA_URL`.
 
 ## Manual CEP Install
 
@@ -88,7 +96,7 @@ After copying the folder, restart After Effects and open `Window > Extensions > 
 
 ## Unsigned Extension Setup
 
-The zip package is currently unsigned. If installing from the zip instead of a signed ZXP, enable unsigned CEP extensions before After Effects will load the panel.
+If installing from the zip instead of a signed ZXP, enable unsigned CEP extensions before After Effects will load the panel.
 
 On macOS, enable CEP debug mode for the relevant CSXS versions:
 
@@ -101,4 +109,4 @@ Restart After Effects after changing CEP settings.
 
 ## Distribution
 
-The current package can be distributed as the generated zip with unsigned-install instructions, or as a signed ZXP for a smoother public install path.
+The package can be distributed as the generated zip with unsigned-install instructions, or as the signed ZXP for a smoother public install path.

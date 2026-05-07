@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "clean": "node scripts/build.mjs --clean",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "zxp": "node scripts/zxp.mjs"
   }
 }
