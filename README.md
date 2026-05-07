@@ -3,7 +3,6 @@
 # rdzTools
 
 [![After Effects](https://img.shields.io/badge/After%20Effects-Plugin-9999FF?style=for-the-badge&logo=adobeaftereffects&logoColor=white)](https://www.adobe.com/products/aftereffects.html)
-[![Status](https://img.shields.io/badge/Status-Release%20Ready-22C55E?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
 [![Version](https://img.shields.io/badge/Version-1.0.0-111827?style=for-the-badge)](/Users/ryder/Desktop/rdztools)
 
 An After Effects CEP extension for motion presets, easing graphs, physics tools, and layer cleanup workflows.
@@ -14,7 +13,7 @@ Created by `ryduzz`.
 
 ## What It Does
 
-`rdzTools` is a production-ready After Effects extension with three main areas:
+`rdzTools` is an After Effects extension with three main areas:
 
 - **Graphs** for reading and applying custom easing curves to selected keyframes
 - **Presets** for applying text, layer entrance, and look treatments
@@ -62,7 +61,7 @@ Build the CEP extension folder:
 npm run build
 ```
 
-Create a release zip from a fresh build:
+Create a distributable zip from a fresh build:
 
 ```sh
 npm run package
@@ -74,7 +73,7 @@ If `npm` is not available but Node is installed, run the package script directly
 node scripts/package.mjs
 ```
 
-The release artifact is written to `release/rdzTools-<version>.zip`. Generated `dist/` and `release/` output is intentionally ignored by git.
+The packaged artifact is written to `release/rdzTools-<version>.zip`. Generated `dist/` and `release/` output is intentionally ignored by git.
 
 ## Manual CEP Install
 
@@ -100,6 +99,6 @@ defaults write com.adobe.CSXS.12 PlayerDebugMode 1
 
 Restart After Effects after changing CEP settings.
 
-## Release Status
+## Distribution
 
-`rdzTools` is a release-ready CEP extension. The package can be distributed as the generated zip with unsigned-install instructions, or as a signed ZXP for a smoother public install path.
+The current package can be distributed as the generated zip with unsigned-install instructions, or as a signed ZXP for a smoother public install path.
