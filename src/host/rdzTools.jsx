@@ -927,6 +927,13 @@ var rdzTools = (function () {
       Math.abs(coords[3] - 1) < 0.001;
   }
 
+  function clampUnit(value) {
+    if (isNaN(value)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(1, value));
+  }
+
   function applyGraphEaseToProperty(prop, coords) {
     if (!prop || !prop.numKeys || prop.numKeys < 2) {
       return 0;
@@ -990,11 +997,84 @@ var rdzTools = (function () {
         return [0, 0, 1, 1];
       }
 
+      var dimensions = Math.max(getEaseDimensions(prop, firstKey), getEaseDimensions(prop, secondKey));
+      var duration = Math.max(0.001, prop.keyTime(secondKey) - prop.keyTime(firstKey));
+      var firstValue = valueToArray(prop.keyValue(firstKey), dimensions);
+      var secondValue = valueToArray(prop.keyValue(secondKey), dimensions);
+      var outSpeedRatioTotal = 0;
+      var inSpeedRatioTotal = 0;
+      var outSpeedRatioCount = 0;
+      var inSpeedRatioCount = 0;
+
+      if (dimensions === 1) {
+        var firstRaw = prop.keyValue(firstKey);
+        var secondRaw = prop.keyValue(secondKey);
+        var magnitude = 0;
+
+        if (firstRaw instanceof Array && secondRaw instanceof Array) {
+          for (var m = 0; m < Math.min(firstRaw.length, secondRaw.length); m += 1) {
+            var axisDelta = Number(secondRaw[m]) - Number(firstRaw[m]);
+            magnitude += axisDelta * axisDelta;
+          }
+          magnitude = Math.sqrt(magnitude);
+        } else {
+          magnitude = Math.abs(Number(secondRaw) - Number(firstRaw));
+        }
+
+        var scalarBaseSpeed = Math.abs(magnitude / duration);
+        if (scalarBaseSpeed >= 0.001) {
+          if (outEase && outEase.length) {
+            var scalarOutRatio = Math.abs(Number(outEase[0].speed)) / scalarBaseSpeed;
+            if (!isNaN(scalarOutRatio)) {
+              outSpeedRatioTotal = scalarOutRatio;
+              outSpeedRatioCount = 1;
+            }
+          }
+          if (inEase && inEase.length) {
+            var scalarInRatio = Math.abs(Number(inEase[0].speed)) / scalarBaseSpeed;
+            if (!isNaN(scalarInRatio)) {
+              inSpeedRatioTotal = scalarInRatio;
+              inSpeedRatioCount = 1;
+            }
+          }
+        }
+      } else {
+        for (var i = 0; i < dimensions; i += 1) {
+          var delta = Number(secondValue[i]) - Number(firstValue[i]);
+          var baseSpeed = Math.abs(delta / duration);
+
+          if (baseSpeed < 0.001) {
+            continue;
+          }
+
+          if (outEase && outEase.length) {
+            var outRatio = Math.abs(Number(outEase[Math.min(i, outEase.length - 1)].speed)) / baseSpeed;
+            if (!isNaN(outRatio)) {
+              outSpeedRatioTotal += outRatio;
+              outSpeedRatioCount += 1;
+            }
+          }
+
+          if (inEase && inEase.length) {
+            var inRatio = Math.abs(Number(inEase[Math.min(i, inEase.length - 1)].speed)) / baseSpeed;
+            if (!isNaN(inRatio)) {
+              inSpeedRatioTotal += inRatio;
+              inSpeedRatioCount += 1;
+            }
+          }
+        }
+      }
+
+      var outX = clampUnit(outInfluence / 100);
+      var inX = clampUnit(1 - (inInfluence / 100));
+      var outSpeedRatio = outSpeedRatioCount > 0 ? outSpeedRatioTotal / outSpeedRatioCount : 0;
+      var inSpeedRatio = inSpeedRatioCount > 0 ? inSpeedRatioTotal / inSpeedRatioCount : 0;
+
       return [
-        Math.max(0, Math.min(1, outInfluence / 100)),
-        0,
-        Math.max(0, Math.min(1, 1 - (inInfluence / 100))),
-        1
+        outX,
+        clampUnit(outSpeedRatio * Math.max(0.001, outX)),
+        inX,
+        clampUnit(1 - (inSpeedRatio * Math.max(0.001, 1 - inX)))
       ];
     } catch (error) {
       return null;
