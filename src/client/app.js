@@ -63,6 +63,32 @@ const tools = [
     ]
   },
   {
+    id: "charIn",
+    group: "Text In",
+    title: "Character In",
+    blurb: "Each character slides in from an editable direction with opacity.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Control how long each character moves and how far apart the characters fire.",
+        fields: [
+          { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.04" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Choose where the characters come from, then dial in distance and optional blur.",
+        fields: [
+          { id: "direction", label: "Direction", type: "select", options: ["Right", "Left", "Bottom", "Top"], defaultValue: "Right" },
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "40" },
+          { id: "blurEnabled", label: "Enable character blur", type: "checkbox", defaultValue: false },
+          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
     id: "wordBounceIn",
     group: "Text In",
     title: "Word Bounce In",
@@ -257,8 +283,8 @@ const tools = [
   {
     id: "layerFadeUp",
     group: "Layer In",
-    title: "Layer fade up",
-    blurb: "Moves selected layers up into place with opacity.",
+    title: "Layer fade",
+    blurb: "Moves selected layers in from an editable direction with opacity.",
     sections: [
       {
         title: "Timing",
@@ -269,9 +295,10 @@ const tools = [
       },
       {
         title: "Motion",
-        description: "Control how far the layer starts below its final position.",
+        description: "Choose where the layer starts, then control how far it moves into place.",
         fields: [
-          { id: "distance", label: "Vertical offset (px)", type: "number", defaultValue: "70" }
+          { id: "direction", label: "Direction", type: "select", options: ["Bottom", "Top", "Right", "Left"], defaultValue: "Bottom" },
+          { id: "distance", label: "Offset (px)", type: "number", defaultValue: "40" }
         ]
       }
     ]
