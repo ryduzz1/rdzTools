@@ -152,8 +152,8 @@ async function main() {
     return;
   }
 
-  await fs.rm(releaseDir, { recursive: true, force: true });
   await fs.mkdir(releaseDir, { recursive: true });
+  await fs.rm(outputPath, { force: true });
   await createZip(distPluginDir, outputPath, "rdzTools");
   console.log(`Packaged ${outputPath}`);
 }

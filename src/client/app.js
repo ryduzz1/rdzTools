@@ -1,4 +1,5 @@
 const SETTINGS_KEY = "rdzTools.toolSettings.v1";
+const GLOBAL_SETTINGS_KEY = "rdzTools.globalSettings.v1";
 const FAVORITES_KEY = "rdzTools.favorites.v1";
 const FAVORITES_HINT_KEY = "rdzTools.favoritesHintDismissed.v1";
 const GRAPH_KEY = "rdzTools.graph.v1";
@@ -12,24 +13,23 @@ const tools = [
   {
     id: "wordBlurRight",
     group: "Text In",
-    title: "Word Blur In From Right",
-    blurb: "Each word slides in from the right with opacity and blur.",
+    title: "Word In From Right",
+    blurb: "Each word slides in from the right with opacity.",
     sections: [
       {
         title: "Timing",
         description: "Control how long each word moves and how far apart the words fire.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Dial in the slide distance and whether the per-word blur is active.",
+        description: "Dial in the slide distance and optionally enable per-word blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = from right)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
         ]
       }
@@ -38,24 +38,23 @@ const tools = [
   {
     id: "wordBlurLeft",
     group: "Text In",
-    title: "Word Blur In From Left",
-    blurb: "Each word slides in from the left with opacity and blur.",
+    title: "Word In From Left",
+    blurb: "Each word slides in from the left with opacity.",
     sections: [
       {
         title: "Timing",
         description: "Control how long each word moves and how far apart the words fire.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Dial in the slide distance and whether the per-word blur is active.",
+        description: "Dial in the slide distance and optionally enable per-word blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = from left)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
         ]
       }
@@ -64,24 +63,23 @@ const tools = [
   {
     id: "wordBlurUp",
     group: "Text In",
-    title: "Word Blur Up From Bottom",
-    blurb: "Each word rises from below with opacity and blur.",
+    title: "Word Up From Bottom",
+    blurb: "Each word rises from below with opacity.",
     sections: [
       {
         title: "Timing",
         description: "Same timing model as the rightward version, but tuned for vertical motion.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set how far the words travel from below and how much blur leads them in.",
+        description: "Set how far the words travel from below and optionally enable blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = from bottom)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
         ]
       }
@@ -90,24 +88,23 @@ const tools = [
   {
     id: "wordBlurDown",
     group: "Text In",
-    title: "Word Blur Down From Top",
-    blurb: "Each word drops in from above with opacity and blur.",
+    title: "Word Down From Top",
+    blurb: "Each word drops in from above with opacity.",
     sections: [
       {
         title: "Timing",
         description: "Use this when the text should feel like it settles down into place.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set the travel amount and blur for a softer downward settle.",
+        description: "Set the travel amount and optionally enable blur for a softer downward settle.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = from top)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
         ]
       }
@@ -124,8 +121,7 @@ const tools = [
         description: "Useful when you want a slightly more characterful title entrance.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.4" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.16" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.16" }
         ]
       },
       {
@@ -151,8 +147,7 @@ const tools = [
         description: "Use this for punchier type where you want each character to arrive with a little spring.",
         fields: [
           { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.32" },
-          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.035" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.035" }
         ]
       },
       {
@@ -168,24 +163,23 @@ const tools = [
   {
     id: "wordBlurOutRight",
     group: "Text Out",
-    title: "Word Blur Out To Right",
-    blurb: "Each word slides right, fades out, and picks up blur.",
+    title: "Word Out To Right",
+    blurb: "Each word slides right and fades out.",
     sections: [
       {
         title: "Timing",
         description: "Control how long each word exits and how far apart the words fire.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set the exit travel distance and ending blur amount.",
+        description: "Set the exit travel distance and optionally enable ending blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = to right)", type: "number", defaultValue: "46" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "10", dependsOn: "blurEnabled" }
         ]
       }
@@ -194,24 +188,23 @@ const tools = [
   {
     id: "wordBlurOutLeft",
     group: "Text Out",
-    title: "Word Blur Out To Left",
-    blurb: "Each word slides left, fades out, and picks up blur.",
+    title: "Word Out To Left",
+    blurb: "Each word slides left and fades out.",
     sections: [
       {
         title: "Timing",
         description: "Control how long each word exits and how far apart the words fire.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set the exit travel distance and ending blur amount.",
+        description: "Set the exit travel distance and optionally enable ending blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = to left)", type: "number", defaultValue: "46" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "10", dependsOn: "blurEnabled" }
         ]
       }
@@ -220,24 +213,23 @@ const tools = [
   {
     id: "wordBlurOutUp",
     group: "Text Out",
-    title: "Word Blur Out Up",
-    blurb: "Each word lifts away with opacity and blur.",
+    title: "Word Out Up",
+    blurb: "Each word lifts away with opacity.",
     sections: [
       {
         title: "Timing",
         description: "A quick vertical word exit for titles and callouts.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set how far the words travel upward and how much blur they gain.",
+        description: "Set how far the words travel upward and optionally enable blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = up)", type: "number", defaultValue: "42" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "9", dependsOn: "blurEnabled" }
         ]
       }
@@ -246,24 +238,23 @@ const tools = [
   {
     id: "wordBlurOutDown",
     group: "Text Out",
-    title: "Word Blur Out Down",
-    blurb: "Each word drops away with opacity and blur.",
+    title: "Word Out Down",
+    blurb: "Each word drops away with opacity.",
     sections: [
       {
         title: "Timing",
         description: "Use this when type should fall out cleanly.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set how far the words travel downward and how much blur they gain.",
+        description: "Set how far the words travel downward and optionally enable blur.",
         fields: [
           { id: "distance", label: "Slide distance px (positive = down)", type: "number", defaultValue: "42" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "9", dependsOn: "blurEnabled" }
         ]
       }
@@ -277,20 +268,19 @@ const tools = [
     sections: [
       {
         title: "Timing",
-        description: "A more stylized word exit with rotation and optional blur.",
+        description: "A more stylized word exit with rotation and offset.",
         fields: [
           { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.38" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.1" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.1" }
         ]
       },
       {
         title: "Motion And Style",
-        description: "Set exit offset, rotation, and blur.",
+        description: "Set exit offset, rotation, and optional blur.",
         fields: [
           { id: "distance", label: "Slide distance px", type: "number", defaultValue: "34" },
           { id: "rotationStart", label: "Ending rotation (deg)", type: "number", defaultValue: "24" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "6", dependsOn: "blurEnabled" }
         ]
       }
@@ -307,8 +297,7 @@ const tools = [
         description: "Control the per-character exit speed.",
         fields: [
           { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.28" },
-          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.025" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.025" }
         ]
       },
       {
@@ -324,24 +313,23 @@ const tools = [
     id: "charScatterOut",
     group: "Text Out",
     title: "Character Scatter Out",
-    blurb: "Characters scatter in alternating directions with fade, blur, and rotation.",
+    blurb: "Characters scatter in alternating directions with fade and rotation.",
     sections: [
       {
         title: "Timing",
         description: "A punchier character exit for energetic type.",
         fields: [
           { id: "wordDur", label: "Character duration (sec)", type: "number", defaultValue: "0.34" },
-          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.02" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "stagger", label: "Stagger between characters (sec)", type: "number", defaultValue: "0.02" }
         ]
       },
       {
         title: "Scatter",
-        description: "Control the spread, spin, and blur.",
+        description: "Control the spread, spin, and optional blur.",
         fields: [
           { id: "distance", label: "Scatter distance px", type: "number", defaultValue: "55" },
           { id: "rotationStart", label: "Rotation amount (deg)", type: "number", defaultValue: "35" },
-          { id: "blurEnabled", label: "Enable character blur", type: "checkbox", defaultValue: true },
+          { id: "blurEnabled", label: "Enable character blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
         ]
       }
@@ -362,8 +350,7 @@ const tools = [
           { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
           { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.2" },
           { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.58" },
-          { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "1" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "1" }
         ]
       },
       {
@@ -384,10 +371,8 @@ const tools = [
     sections: [
       {
         title: "Timing",
-        description: "Set the first frame of the pop. The rest is built on consecutive frames.",
-        fields: [
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
-        ]
+        description: "The pop starts from the global animation start. The rest is built on consecutive frames.",
+        fields: []
       }
     ]
   },
@@ -401,8 +386,7 @@ const tools = [
         title: "Timing",
         description: "A straightforward layer entrance for solids, shapes, text, and comps.",
         fields: [
-          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.45" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.45" }
         ]
       },
       {
@@ -422,10 +406,8 @@ const tools = [
     sections: [
       {
         title: "Timing",
-        description: "Creates two close linear keyframes from the playhead or entered time.",
-        fields: [
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
-        ]
+        description: "Creates two close linear keyframes from the global animation start.",
+        fields: []
       },
       {
         title: "Motion",
@@ -446,8 +428,7 @@ const tools = [
         title: "Timing",
         description: "A fast horizontal entrance for UI, lower thirds, or cards.",
         fields: [
-          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" }
         ]
       },
       {
@@ -469,8 +450,7 @@ const tools = [
         title: "Timing",
         description: "Pairs well with the right-side version for alternating layouts.",
         fields: [
-          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" }
         ]
       },
       {
@@ -492,8 +472,7 @@ const tools = [
         title: "Timing",
         description: "Useful for stickers, icons, and punchier graphic reveals.",
         fields: [
-          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.32" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.32" }
         ]
       },
       {
@@ -516,8 +495,7 @@ const tools = [
         title: "Timing",
         description: "A softer reveal for comps, graphics, and atmospheric elements.",
         fields: [
-          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" },
-          { id: "startSec", label: "Animation start (sec or Cursor)", type: "text", defaultValue: "Cursor" }
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "0.4" }
         ]
       },
       {
@@ -851,6 +829,7 @@ let graphCoords = loadGraphCoords();
 let draggedGraphHandle = null;
 let editingToolId = null;
 let savedSettings = loadSavedSettings();
+let globalSettings = loadGlobalSettings();
 let favoriteToolIds = loadFavoriteToolIds();
 let draggedToolId = null;
 let draggedFromFavorites = false;
@@ -871,8 +850,11 @@ const sheetGroup = document.getElementById("sheetGroup");
 const sheetTitle = document.getElementById("sheetTitle");
 const sheetDescription = document.getElementById("sheetDescription");
 const settingsOverlay = document.getElementById("settingsOverlay");
+const globalSettingsOverlay = document.getElementById("globalSettingsOverlay");
+const globalStartSecInput = document.getElementById("globalStartSec");
 const tabBar = document.getElementById("tabBar");
 const applyButton = document.getElementById("applyTool");
+const openGlobalSettingsButton = document.getElementById("openGlobalSettings");
 const actionbar = document.getElementById("actionbar");
 const toolHelpPopup = document.getElementById("toolHelpPopup");
 const toolHelpTitle = document.getElementById("toolHelpTitle");
@@ -911,7 +893,36 @@ function getBridge() {
 function loadSavedSettings() {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const sanitized = {};
+    let changed = false;
+    for (const [toolId, payload] of Object.entries(parsed)) {
+      const tool = toolMap[toolId];
+      if (!tool || !payload || typeof payload !== "object" || Array.isArray(payload)) {
+        changed = true;
+        continue;
+      }
+
+      const allowedFields = new Set(tool.sections.flatMap((section) => section.fields).map((field) => field.id));
+      const currentPayload = {};
+      for (const [key, value] of Object.entries(payload)) {
+        if (allowedFields.has(key)) {
+          currentPayload[key] = value;
+        } else {
+          changed = true;
+        }
+      }
+      sanitized[toolId] = currentPayload;
+    }
+
+    if (changed) {
+      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(sanitized));
+    }
+    return sanitized;
   } catch (error) {
     return {};
   }
@@ -919,6 +930,25 @@ function loadSavedSettings() {
 
 function persistSettings() {
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(savedSettings));
+}
+
+function normalizeGlobalSettings(payload) {
+  return {
+    startSec: payload && payload.startSec !== undefined ? String(payload.startSec) : "Cursor"
+  };
+}
+
+function loadGlobalSettings() {
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_SETTINGS_KEY);
+    return normalizeGlobalSettings(raw ? JSON.parse(raw) : {});
+  } catch (error) {
+    return normalizeGlobalSettings({});
+  }
+}
+
+function persistGlobalSettings() {
+  window.localStorage.setItem(GLOBAL_SETTINGS_KEY, JSON.stringify(globalSettings));
 }
 
 function loadFavoriteToolIds() {
@@ -1043,6 +1073,13 @@ function getToolSettings(toolId) {
   return {
     ...defaults,
     ...currentSaved
+  };
+}
+
+function getToolPayload(toolId) {
+  return {
+    ...getToolSettings(toolId),
+    startSec: globalSettings.startSec
   };
 }
 
@@ -1759,6 +1796,34 @@ function closeSettings() {
   }, 280);
 }
 
+function openGlobalSettings() {
+  globalStartSecInput.value = globalSettings.startSec;
+  globalSettingsOverlay.classList.remove("hidden");
+  globalSettingsOverlay.classList.remove("closing");
+}
+
+function closeGlobalSettings() {
+  globalSettingsOverlay.classList.add("closing");
+  window.setTimeout(() => {
+    globalSettingsOverlay.classList.add("hidden");
+    globalSettingsOverlay.classList.remove("closing");
+  }, 280);
+}
+
+function resetGlobalSettings() {
+  globalSettings = normalizeGlobalSettings({});
+  persistGlobalSettings();
+  globalStartSecInput.value = globalSettings.startSec;
+  setStatus("Reset global settings.", "success");
+}
+
+function saveGlobalSettings() {
+  globalSettings = normalizeGlobalSettings({ startSec: globalStartSecInput.value });
+  persistGlobalSettings();
+  setStatus("Saved global settings.", "success");
+  closeGlobalSettings();
+}
+
 function hideToolHelp() {
   if (toolHelpPopup.classList.contains("hidden") || toolHelpPopup.classList.contains("closing")) {
     return;
@@ -1938,7 +2003,7 @@ async function applyActiveTool() {
   if (!activeToolId) {
     return;
   }
-  const payload = getToolSettings(activeToolId);
+  const payload = getToolPayload(activeToolId);
   const payloadString = escapeString(JSON.stringify(payload));
 
   setStatus(`Applying ${toolMap[activeToolId].title}...`);
@@ -1950,7 +2015,7 @@ async function applyActiveTool() {
 }
 
 async function applyToolById(toolId) {
-  const payload = getToolSettings(toolId);
+  const payload = getToolPayload(toolId);
   const payloadString = escapeString(JSON.stringify(payload));
   const result = await bridge.eval(`rdzTools.applyTool("${escapeString(toolId)}","${payloadString}")`);
   const ok = typeof result === "string" && result.indexOf("OK:") === 0;
@@ -2012,10 +2077,15 @@ function updateGraphHandleFromEvent(event) {
 }
 
 applyButton.addEventListener("click", applyActiveTool);
+openGlobalSettingsButton.addEventListener("click", openGlobalSettings);
 document.getElementById("closeSettings").addEventListener("click", closeSettings);
 document.getElementById("saveSettings").addEventListener("click", saveSettingsForEditingTool);
 document.getElementById("resetSettings").addEventListener("click", resetSettingsForEditingTool);
-document.querySelector(".overlay-backdrop").addEventListener("click", closeSettings);
+document.getElementById("settingsBackdrop").addEventListener("click", closeSettings);
+document.getElementById("closeGlobalSettings").addEventListener("click", closeGlobalSettings);
+document.getElementById("saveGlobalSettings").addEventListener("click", saveGlobalSettings);
+document.getElementById("resetGlobalSettings").addEventListener("click", resetGlobalSettings);
+document.getElementById("globalSettingsBackdrop").addEventListener("click", closeGlobalSettings);
 tabBar.addEventListener("click", (event) => {
   const tabButton = event.target.closest("[data-tab-id]");
   if (!tabButton || tabButton.dataset.tabId === activeTabId) {
@@ -2151,6 +2221,12 @@ document.addEventListener("click", hideToolHelp);
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     hideToolHelp();
+    if (!settingsOverlay.classList.contains("hidden")) {
+      closeSettings();
+    }
+    if (!globalSettingsOverlay.classList.contains("hidden")) {
+      closeGlobalSettings();
+    }
   }
 });
 toolList.addEventListener("scroll", hideToolHelp);

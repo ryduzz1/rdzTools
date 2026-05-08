@@ -31,7 +31,7 @@ It is built for getting useful motion, styling, physics, and cleanup operations 
 
 ### Presets
 
-- Word blur text reveals from the left, right, top, or bottom
+- Word text reveals from the left, right, top, or bottom with optional blur
 - Word rotate entrance
 - Character bounce entrance
 - Layer fade, slide, scale, rotate, and blur entrances
@@ -61,6 +61,12 @@ Build the CEP extension folder:
 npm run build
 ```
 
+Build and install the extension into the local Adobe CEP extensions folder for testing:
+
+```sh
+npm run install:cep
+```
+
 Create a distributable zip from a fresh build:
 
 ```sh
@@ -79,13 +85,15 @@ If `npm` is not available but Node is installed, run the package script directly
 node scripts/package.mjs
 ```
 
-The zip package is written to `release/rdzTools-<version>.zip`. The signed ZXP is written to `release/rdzTools-<version>.zxp`. Generated `dist/` and `release/` output is intentionally ignored by git.
+The local install command copies `dist/rdzTools` to `~/Library/Application Support/Adobe/CEP/extensions/rdzTools`. The zip package is written to `release/rdzTools-<version>.zip`. The signed ZXP is written to `release/rdzTools-<version>.zxp`. Generated `dist/` and `release/` output is intentionally ignored by git.
 
 The ZXP script uses `/Users/ryder/Desktop/zxp-sign/ZXPSignCmd` and `certs/rdzTools.p12` by default. Override those paths with `ZXP_SIGN_CMD` or `ZXP_CERT` if needed. To timestamp the signature, pass `ZXP_TSA_URL`.
 
 ## Manual CEP Install
 
-Unzip the release package and place the `rdzTools` folder in the Adobe CEP extensions directory for your platform.
+For local testing on macOS, run `npm run install:cep`.
+
+To install a zip manually, unzip the release package and place the `rdzTools` folder in the Adobe CEP extensions directory for your platform.
 
 Common extension directories:
 

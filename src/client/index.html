@@ -18,6 +18,12 @@
 
       <div id="actionbar" class="actionbar">
         <h1>rdzTools</h1>
+        <button id="openGlobalSettings" class="square-settings-button" aria-label="Global settings">
+          <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2.05 2.05 0 0 1-2.9 2.9l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.02 1.56V21a2.05 2.05 0 0 1-4.1 0v-.09a1.7 1.7 0 0 0-1.02-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2.05 2.05 0 0 1-2.9-2.9l.06-.06A1.7 1.7 0 0 0 4.4 15a1.7 1.7 0 0 0-1.56-1.02H2.75a2.05 2.05 0 0 1 0-4.1h.09A1.7 1.7 0 0 0 4.4 8.86a1.7 1.7 0 0 0-.34-1.87L4 6.93a2.05 2.05 0 0 1 2.9-2.9l.06.06a1.7 1.7 0 0 0 1.87.34 1.7 1.7 0 0 0 1.02-1.56V2.8a2.05 2.05 0 0 1 4.1 0v.09a1.7 1.7 0 0 0 1.02 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2.05 2.05 0 0 1 2.9 2.9l-.06.06a1.7 1.7 0 0 0-.34 1.87 1.7 1.7 0 0 0 1.56 1.02h.09a2.05 2.05 0 0 1 0 4.1h-.09A1.7 1.7 0 0 0 19.4 15Z" />
+          </svg>
+        </button>
         <button id="applyTool" class="apply">Apply</button>
       </div>
 
@@ -27,7 +33,7 @@
     </div>
 
     <div id="settingsOverlay" class="overlay hidden">
-      <div class="overlay-backdrop"></div>
+      <div id="settingsBackdrop" class="overlay-backdrop"></div>
       <section class="settings-sheet">
         <div class="sheet-head">
           <div>
@@ -43,6 +49,40 @@
         <div class="sheet-actions">
           <button id="resetSettings" class="ghost">Reset</button>
           <button id="saveSettings" class="apply">Save</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="globalSettingsOverlay" class="overlay hidden">
+      <div id="globalSettingsBackdrop" class="overlay-backdrop"></div>
+      <section class="settings-sheet global-settings-sheet">
+        <div class="sheet-head">
+          <div>
+            <p class="sheet-label">Global</p>
+            <h2>Global Settings</h2>
+          </div>
+          <button id="closeGlobalSettings" class="icon-button" aria-label="Close global settings">×</button>
+        </div>
+
+        <p class="sheet-copy">Shared preset settings used whenever a preset is applied.</p>
+        <div class="field-stack">
+          <section class="field-section">
+            <div>
+              <h3>Timing</h3>
+              <p>Controls where preset animation starts.</p>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="globalStartSec">Animation start (sec or Cursor)</label>
+                <input id="globalStartSec" class="text-input" type="text" value="Cursor" />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="sheet-actions">
+          <button id="resetGlobalSettings" class="ghost">Reset</button>
+          <button id="saveGlobalSettings" class="apply">Save</button>
         </div>
       </section>
     </div>

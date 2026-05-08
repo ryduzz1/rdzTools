@@ -159,6 +159,52 @@ select {
   display: none;
 }
 
+.square-settings-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #2f2f2f;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform var(--ease-fast),
+    border-color var(--ease-fast),
+    background var(--ease-fast),
+    box-shadow var(--ease-fast),
+    color var(--ease-fast);
+}
+
+.square-settings-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: #363636;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
+.square-settings-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.settings-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.settings-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .list-shell {
   padding: 8px;
   overflow: hidden;
@@ -1497,6 +1543,10 @@ select {
     transform var(--ease-soft),
     opacity var(--ease-soft),
     box-shadow var(--ease-soft);
+}
+
+.global-settings-sheet {
+  width: min(440px, calc(100vw - 20px));
 }
 
 .overlay.hidden .overlay-backdrop {

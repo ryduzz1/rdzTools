@@ -337,7 +337,7 @@ var rdzTools = (function () {
       startSec: parseStartTime(comp, payload.startSec),
       distance: isNaN(payload.distance) ? 40 : Number(payload.distance),
       blurAmt: isNaN(payload.blurAmt) ? 8 : Number(payload.blurAmt),
-      blurEnabled: payload.blurEnabled !== false,
+      blurEnabled: payload.blurEnabled === true,
       scaleStart: isNaN(payload.scaleStart) ? 100 : Number(payload.scaleStart),
       scaleOvershoot: isNaN(payload.scaleOvershoot) ? 112 : Number(payload.scaleOvershoot),
       rotationStart: isNaN(payload.rotationStart) ? 0 : Number(payload.rotationStart)
