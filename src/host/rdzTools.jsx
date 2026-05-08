@@ -236,6 +236,47 @@ var rdzTools = (function () {
     (easeSetter || setWordEase)(prop);
   }
 
+  function parseHexColor(value, fallback) {
+    var text = String(value || "").replace(/^\s+|\s+$/g, "");
+    var match = /^#?([0-9a-fA-F]{6})$/.exec(text);
+    if (!match) {
+      return fallback || [0.176, 0.549, 1];
+    }
+
+    var hex = match[1];
+    return [
+      parseInt(hex.substr(0, 2), 16) / 255,
+      parseInt(hex.substr(2, 2), 16) / 255,
+      parseInt(hex.substr(4, 2), 16) / 255
+    ];
+  }
+
+  function getTextLayerFillColor(layer) {
+    try {
+      var textDocument = layer.property("ADBE Text Properties").property("ADBE Text Document").value;
+      if (textDocument && textDocument.fillColor && textDocument.fillColor.length >= 3) {
+        return [textDocument.fillColor[0], textDocument.fillColor[1], textDocument.fillColor[2]];
+      }
+    } catch (fillColorError) {}
+
+    return [0, 0, 0];
+  }
+
+  function applyTextStartColor(animProps, t0, t1, settings, baseColor, easeSetter) {
+    if (!settings.startColorEnabled) {
+      return;
+    }
+
+    var colorProp = addAnimatorProperty(animProps, "ADBE Text Fill Color", "Fill Color");
+    if (!colorProp) {
+      return;
+    }
+
+    try {
+      key2(colorProp, t0, settings.startColor, t1, baseColor, easeSetter || setWordEase);
+    } catch (colorError) {}
+  }
+
   function setSelectorToWord(rangeSelector, wordIndex, totalWords) {
     var start = rangeSelector.property(1);
     var end = rangeSelector.property(2);
@@ -336,8 +377,11 @@ var rdzTools = (function () {
       stagger: Math.max(0.0, Math.min(5.0, isNaN(payload.stagger) ? 0.2 : Number(payload.stagger))),
       startSec: parseStartTime(comp, payload.startSec),
       distance: isNaN(payload.distance) ? 40 : Number(payload.distance),
+      direction: payload.direction || "Right",
       blurAmt: isNaN(payload.blurAmt) ? 8 : Number(payload.blurAmt),
       blurEnabled: payload.blurEnabled === true,
+      startColorEnabled: payload.startColorEnabled === true,
+      startColor: parseHexColor(payload.startColor, [0.176, 0.549, 1]),
       scaleStart: isNaN(payload.scaleStart) ? 100 : Number(payload.scaleStart),
       scaleOvershoot: isNaN(payload.scaleOvershoot) ? 112 : Number(payload.scaleOvershoot),
       rotationStart: isNaN(payload.rotationStart) ? 0 : Number(payload.rotationStart)
@@ -356,6 +400,7 @@ var rdzTools = (function () {
     var numWords = words ? words.length : 1;
     var startX = options.offsetX || 0;
     var startY = options.offsetY || 0;
+    var baseColor = getTextLayerFillColor(layer);
 
     for (var i = 0; i < numWords; i += 1) {
       var animator = animators.addProperty("ADBE Text Animator");
@@ -381,12 +426,34 @@ var rdzTools = (function () {
 
       var t0 = settings.startSec + (i * settings.stagger);
       var t1 = t0 + settings.wordDur;
+      applyTextStartColor(animProps, t0, t1, settings, baseColor, setWordEase);
 
       if (posProp && (startX !== 0 || startY !== 0)) {
-        try {
-          key2(posProp, t0, [startX, startY, 0], t1, [0, 0, 0], setWordEase);
-        } catch (position3dError) {
-          key2(posProp, t0, [startX, startY], t1, [0, 0], setWordEase);
+        if (options.positionBounce) {
+          var settleTime = t0 + (comp.frameDuration * 10);
+          try {
+            posProp.setValueAtTime(t0, [startX, startY, 0]);
+            posProp.setValueAtTime(settleTime, [0, 0, 0]);
+          } catch (positionBounce3dError) {
+            posProp.setValueAtTime(t0, [startX, startY]);
+            posProp.setValueAtTime(settleTime, [0, 0]);
+          }
+          for (var posKeyIndex = Math.max(1, posProp.numKeys - 1); posKeyIndex <= posProp.numKeys; posKeyIndex += 1) {
+            try {
+              posProp.setInterpolationTypeAtKey(posKeyIndex, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+            } catch (positionLinearError) {}
+          }
+          try {
+            ensureBounceControls(layer, normalizeBounceSettings({}));
+            posProp.expression = buildBounceExpression();
+            posProp.expressionEnabled = true;
+          } catch (positionBounceExpressionError) {}
+        } else {
+          try {
+            key2(posProp, t0, [startX, startY, 0], t1, [0, 0, 0], setWordEase);
+          } catch (position3dError) {
+            key2(posProp, t0, [startX, startY], t1, [0, 0], setWordEase);
+          }
         }
       }
       if (opacityProp) {
@@ -459,6 +526,7 @@ var rdzTools = (function () {
     var animators = textProps.property("ADBE Text Animators");
     var srcText = textProps.property("ADBE Text Document").value.text;
     var totalChars = Math.max(1, srcText.length);
+    var baseColor = getTextLayerFillColor(layer);
 
     for (var i = 0; i < totalChars; i += 1) {
       var animator = animators.addProperty("ADBE Text Animator");
@@ -480,6 +548,7 @@ var rdzTools = (function () {
       var t1 = t0 + (settings.wordDur * 0.38);
       var t2 = t0 + (settings.wordDur * 0.68);
       var t3 = t0 + settings.wordDur;
+      applyTextStartColor(animProps, t0, t3, settings, baseColor, setWordEase);
 
       if (opacityProp) {
         key2(opacityProp, t0, 0, t3, 100, setWordEase);
@@ -525,6 +594,7 @@ var rdzTools = (function () {
     var words = srcText.match(/\S+/g);
     var numWords = words ? words.length : 1;
     var offsetX = settings.distance;
+    var baseColor = getTextLayerFillColor(layer);
 
     for (var i = 0; i < numWords; i += 1) {
       var animator = animators.addProperty("ADBE Text Animator");
@@ -552,6 +622,7 @@ var rdzTools = (function () {
       var t1 = t0 + (settings.wordDur * 0.42);
       var t2 = t0 + (settings.wordDur * 0.76);
       var t3 = t0 + settings.wordDur;
+      applyTextStartColor(animProps, t0, t3, settings, baseColor, setSnappyEase);
 
       if (posProp) {
         try {
@@ -639,6 +710,7 @@ var rdzTools = (function () {
     var numWords = words ? words.length : 1;
     var endX = options.offsetX || 0;
     var endY = options.offsetY || 0;
+    var baseColor = getTextLayerFillColor(layer);
 
     for (var i = 0; i < numWords; i += 1) {
       var animator = animators.addProperty("ADBE Text Animator");
@@ -664,6 +736,7 @@ var rdzTools = (function () {
 
       var t0 = settings.startSec + (i * settings.stagger);
       var t1 = t0 + settings.wordDur;
+      applyTextStartColor(animProps, t0, t1, settings, baseColor, setSnappyEase);
 
       if (posProp && (endX !== 0 || endY !== 0)) {
         try {
@@ -707,6 +780,7 @@ var rdzTools = (function () {
     var animators = textProps.property("ADBE Text Animators");
     var srcText = textProps.property("ADBE Text Document").value.text;
     var totalChars = Math.max(1, srcText.length);
+    var baseColor = getTextLayerFillColor(layer);
 
     for (var i = 0; i < totalChars; i += 1) {
       var animator = animators.addProperty("ADBE Text Animator");
@@ -733,6 +807,7 @@ var rdzTools = (function () {
       var t0 = settings.startSec + (i * settings.stagger);
       var t1 = t0 + settings.wordDur;
       var direction = i % 2 === 0 ? 1 : -1;
+      applyTextStartColor(animProps, t0, t1, settings, baseColor, setSnappyEase);
       var vertical = i % 3 === 0 ? -0.65 : 0.65;
       var endX = direction * settings.distance;
       var endY = vertical * settings.distance;
@@ -1087,6 +1162,8 @@ var rdzTools = (function () {
       duration: Math.max(0.05, Math.min(3.0, isNaN(payload.duration) ? 0.45 : Number(payload.duration))),
       distance: isNaN(payload.distance) ? 80 : Number(payload.distance),
       blurAmt: isNaN(payload.blurAmt) ? 18 : Number(payload.blurAmt),
+      startColorEnabled: payload.startColorEnabled === true,
+      startColor: parseHexColor(payload.startColor, [0.176, 0.549, 1]),
       scaleStart: isNaN(payload.scaleStart) ? 82 : Number(payload.scaleStart),
       rotationStart: isNaN(payload.rotationStart) ? -12 : Number(payload.rotationStart)
     };
@@ -1099,6 +1176,7 @@ var rdzTools = (function () {
     var rotationProp = getTransformProp(layer, "Rotation");
     var t0 = settings.startSec;
     var t1 = t0 + settings.duration;
+    applyLayerStartColor(layer, t0, t1, settings);
 
     if (opacityProp) {
       opacityProp.setValueAtTime(t0, 0);
@@ -1144,6 +1222,7 @@ var rdzTools = (function () {
 
     var t0 = settings.startSec;
     var t1 = t0 + Math.max(comp.frameDuration * 5, 0.001);
+    applyLayerStartColor(layer, t0, t1, settings);
     var currentPosition = positionProp.value;
     var startPosition = [currentPosition[0], currentPosition[1] + settings.distance];
     if (currentPosition.length > 2) {
@@ -1225,6 +1304,45 @@ var rdzTools = (function () {
     return false;
   }
 
+  function getEffectProperty(effect, ids) {
+    if (!effect) {
+      return null;
+    }
+
+    for (var i = 0; i < ids.length; i += 1) {
+      try {
+        var prop = effect.property(ids[i]);
+        if (prop) {
+          return prop;
+        }
+      } catch (propertyError) {}
+    }
+
+    return null;
+  }
+
+  function applyLayerStartColor(layer, t0, t1, settings) {
+    if (!settings.startColorEnabled) {
+      removeEffectsByName(layer, "rdzTools Start Color");
+      return;
+    }
+
+    removeEffectsByName(layer, "rdzTools Start Color");
+
+    var fill = addOrGetEffectFlexible(layer, "ADBE Fill", "Fill");
+    fill.name = "rdzTools Start Color";
+    setEffectValue(fill, [3, "Color"], settings.startColor);
+
+    var opacityProp = getEffectProperty(fill, [7, "Opacity"]);
+    if (!opacityProp) {
+      return;
+    }
+
+    opacityProp.setValueAtTime(t0, 100);
+    opacityProp.setValueAtTime(t1, 0);
+    setLayerEase(opacityProp);
+  }
+
   function removeEffectsByMatchName(layer, matchName) {
     var effects = layer.property("ADBE Effect Parade");
     if (!effects) {
@@ -1259,6 +1377,23 @@ var rdzTools = (function () {
     return removed;
   }
 
+  function removeEffectsByName(layer, effectName) {
+    var effects = layer.property("ADBE Effect Parade");
+    if (!effects) {
+      return 0;
+    }
+
+    var removed = 0;
+    for (var i = effects.numProperties; i >= 1; i -= 1) {
+      var effect = effects.property(i);
+      if (effect && effect.name === effectName) {
+        effect.remove();
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   function sanitizeLayerName(value) {
     return String(value || "Layer").replace(/[\\\/:\*\?\"\<\>\|]/g, "_");
   }
@@ -1273,9 +1408,6 @@ var rdzTools = (function () {
       lightAngle: isNaN(payload.lightAngle) ? 135 : Number(payload.lightAngle),
       lightIntensity: isNaN(payload.lightIntensity) ? 0.7 : Number(payload.lightIntensity),
       blurAmt: isNaN(payload.blurAmt) ? 25 : Number(payload.blurAmt),
-      bevelThickness: isNaN(payload.bevelThickness) ? 7 : Number(payload.bevelThickness),
-      glowRadius: isNaN(payload.glowRadius) ? 22 : Number(payload.glowRadius),
-      glowIntensity: isNaN(payload.glowIntensity) ? 0.45 : Number(payload.glowIntensity),
       shadowOpacity: isNaN(payload.shadowOpacity) ? 24 : Number(payload.shadowOpacity),
       shadowDistance: isNaN(payload.shadowDistance) ? 10 : Number(payload.shadowDistance),
       shadowSoftness: isNaN(payload.shadowSoftness) ? 24 : Number(payload.shadowSoftness)
@@ -1291,27 +1423,13 @@ var rdzTools = (function () {
     setEffectValue(shadow, [6, "Shadow Only"], 0);
   }
 
-  function applyBevelLiteLook(layer, settings) {
-    var bevel = addOrGetEffectFlexible(layer, "ADBE Bevel Alpha", "Bevel Alpha");
-    setEffectValue(bevel, [1, "Edge Thickness"], Math.max(0, settings.thickness));
-    setEffectValue(bevel, [2, "Light Angle"], settings.lightAngle);
-    setEffectValue(bevel, [3, "Light Intensity"], Math.max(0, settings.lightIntensity));
-  }
-
-  function applyGlowLook(layer, settings) {
-    var glow = addOrGetEffectFlexible(layer, "ADBE Glow", "Glow");
-    setEffectValue(glow, [2, "Glow Threshold"], 60);
-    setEffectValue(glow, [3, "Glow Radius"], Math.max(0, settings.glowRadius));
-    setEffectValue(glow, [4, "Glow Intensity"], Math.max(0, settings.glowIntensity));
-  }
-
   function setVectorStrokeValues(stroke, settings) {
     if (!stroke) {
       return;
     }
 
-    setEffectValue(stroke, ["ADBE Vector Stroke Color", "Color", 2], [1, 1, 1, 1]);
-    setEffectValue(stroke, ["ADBE Vector Stroke Opacity", "Opacity", 4], 65);
+    setEffectValue(stroke, ["ADBE Vector Stroke Color", "Color", 2], settings.color || [1, 1, 1, 1]);
+    setEffectValue(stroke, ["ADBE Vector Stroke Opacity", "Opacity", 4], settings.opacity || 65);
     setEffectValue(stroke, ["ADBE Vector Stroke Width", "Stroke Width", 5], Math.max(0.5, Math.min(4, settings.strokeWidth || 1.5)));
     setEffectValue(stroke, ["ADBE Vector Stroke Line Cap", "Line Cap", 7], 2);
     setEffectValue(stroke, ["ADBE Vector Stroke Line Join", "Line Join", 8], 2);
@@ -1480,6 +1598,7 @@ var rdzTools = (function () {
     var blur = addOrGetEffect(layer, "ADBE Gaussian Blur 2");
     var t0 = settings.startSec;
     var t1 = t0 + settings.duration;
+    applyLayerStartColor(layer, t0, t1, settings);
 
     opacityProp.setValueAtTime(t0, 0);
     opacityProp.setValueAtTime(t1, 100);
@@ -1514,6 +1633,7 @@ var rdzTools = (function () {
     var t0 = opacityT0 + frame;
     var t1 = t0 + frame;
     var t2 = t1 + frame;
+    applyLayerStartColor(layer, opacityT0, t2, settings);
 
     opacityProp.setValueAtTime(opacityT0, 0);
     opacityProp.setValueAtTime(t0, 100);
@@ -3514,7 +3634,7 @@ var rdzTools = (function () {
         return applyTextExplodeOut(comp, payload);
       }
 
-      if (toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn" || toolId === "charBounceIn" || toolId === "wordBlurOutRight" || toolId === "wordBlurOutLeft" || toolId === "wordBlurOutUp" || toolId === "wordBlurOutDown" || toolId === "wordRotateOut" || toolId === "charShrinkOut" || toolId === "charScatterOut") {
+      if (toolId === "wordIn" || toolId === "wordBounceIn" || toolId === "wordBlurRight" || toolId === "wordBlurLeft" || toolId === "wordBlurUp" || toolId === "wordBlurDown" || toolId === "wordRotateIn" || toolId === "charBounceIn" || toolId === "wordBlurOutRight" || toolId === "wordBlurOutLeft" || toolId === "wordBlurOutUp" || toolId === "wordBlurOutDown" || toolId === "wordRotateOut" || toolId === "charShrinkOut" || toolId === "charScatterOut") {
         var textLayer = getTextLayer(comp);
         if (!textLayer) {
           throw new Error("No text layer found in comp.");
@@ -3542,6 +3662,21 @@ var rdzTools = (function () {
 
         var options = {};
 
+        if (toolId === "wordIn" || toolId === "wordBounceIn") {
+          var wordInDirection = String(wordSettings.direction || "Right").toLowerCase();
+          if (wordInDirection === "left") {
+            options = { offsetX: -wordSettings.distance, offsetY: 0 };
+          } else if (wordInDirection === "bottom") {
+            options = { offsetX: 0, offsetY: wordSettings.distance };
+          } else if (wordInDirection === "top") {
+            options = { offsetX: 0, offsetY: -wordSettings.distance };
+          } else {
+            options = { offsetX: wordSettings.distance, offsetY: 0 };
+          }
+          if (toolId === "wordBounceIn") {
+            options.positionBounce = true;
+          }
+        }
         if (toolId === "wordBlurRight") { options = { offsetX: wordSettings.distance, offsetY: 0 }; }
         if (toolId === "wordBlurLeft") { options = { offsetX: -wordSettings.distance, offsetY: 0 }; }
         if (toolId === "wordBlurUp") { options = { offsetX: 0, offsetY: wordSettings.distance }; }
@@ -3620,7 +3755,7 @@ var rdzTools = (function () {
         return "OK: Applied layer blur fade in to " + blurLayers.length + " layer(s).";
       }
 
-      if (toolId === "lookSoftShadow" || toolId === "lookLongShadow" || toolId === "lookBevelLite" || toolId === "lookLiquidGlass") {
+      if (toolId === "lookSoftShadow" || toolId === "lookLongShadow" || toolId === "lookLiquidGlass") {
         var lookLayers = requireSelectedLayers(comp);
         var lookSettings = normalizeLookSettings(payload);
 
@@ -3634,8 +3769,6 @@ var rdzTools = (function () {
               softness: lookSettings.softness,
               angle: lookSettings.angle
             });
-          } else if (toolId === "lookBevelLite") {
-            applyBevelLiteLook(lookLayers[l], lookSettings);
           } else if (toolId === "lookLiquidGlass") {
             applyLiquidGlassLook(lookLayers[l], lookSettings);
           }

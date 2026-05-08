@@ -78,6 +78,30 @@
               </div>
             </div>
           </section>
+          <section class="field-section">
+            <div>
+              <h3>Start Color</h3>
+              <p>Adds a temporary solid color that fades back to the layer's normal color over each animation.</p>
+            </div>
+            <div class="field-grid">
+              <label class="checkbox-field">
+                <input id="globalStartColorEnabled" type="checkbox" />
+                <span>Enable start color</span>
+              </label>
+              <div id="globalStartColorWrap" class="field">
+                <label>Color</label>
+                <div class="color-picker" data-color-picker>
+                  <div id="globalColorSquare" class="color-square">
+                    <span id="globalColorSquareHandle" class="color-square-handle" aria-hidden="true"></span>
+                  </div>
+                  <div id="globalHueBar" class="hue-bar">
+                    <span id="globalHueHandle" class="hue-handle" aria-hidden="true"></span>
+                  </div>
+                </div>
+                <input id="globalStartColor" type="hidden" value="#2d8cff" />
+              </div>
+            </div>
+          </section>
         </div>
 
         <div class="sheet-actions">

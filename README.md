@@ -35,7 +35,7 @@ It is built for getting useful motion, styling, physics, and cleanup operations 
 - Word rotate entrance
 - Character bounce entrance
 - Layer fade, slide, scale, rotate, and blur entrances
-- Soft shadow, long shadow, bevel, and liquid glass look presets
+- Soft shadow, long shadow, and liquid glass look presets
 - Per-preset settings with saved custom values
 - Favorites for quick preset access
 

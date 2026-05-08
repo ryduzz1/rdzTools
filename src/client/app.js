@@ -11,10 +11,10 @@ const tabDefinitions = [
 
 const tools = [
   {
-    id: "wordBlurRight",
+    id: "wordIn",
     group: "Text In",
-    title: "Word In From Right",
-    blurb: "Each word slides in from the right with opacity.",
+    title: "Word In",
+    blurb: "Each word slides in from an editable direction with opacity.",
     sections: [
       {
         title: "Timing",
@@ -26,84 +26,10 @@ const tools = [
       },
       {
         title: "Motion And Style",
-        description: "Dial in the slide distance and optionally enable per-word blur.",
+        description: "Choose where the words come from, then dial in distance and optional blur.",
         fields: [
-          { id: "distance", label: "Slide distance px (positive = from right)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
-          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
-        ]
-      }
-    ]
-  },
-  {
-    id: "wordBlurLeft",
-    group: "Text In",
-    title: "Word In From Left",
-    blurb: "Each word slides in from the left with opacity.",
-    sections: [
-      {
-        title: "Timing",
-        description: "Control how long each word moves and how far apart the words fire.",
-        fields: [
-          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
-        ]
-      },
-      {
-        title: "Motion And Style",
-        description: "Dial in the slide distance and optionally enable per-word blur.",
-        fields: [
-          { id: "distance", label: "Slide distance px (positive = from left)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
-          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
-        ]
-      }
-    ]
-  },
-  {
-    id: "wordBlurUp",
-    group: "Text In",
-    title: "Word Up From Bottom",
-    blurb: "Each word rises from below with opacity.",
-    sections: [
-      {
-        title: "Timing",
-        description: "Same timing model as the rightward version, but tuned for vertical motion.",
-        fields: [
-          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
-        ]
-      },
-      {
-        title: "Motion And Style",
-        description: "Set how far the words travel from below and optionally enable blur.",
-        fields: [
-          { id: "distance", label: "Slide distance px (positive = from bottom)", type: "number", defaultValue: "40" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
-          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
-        ]
-      }
-    ]
-  },
-  {
-    id: "wordBlurDown",
-    group: "Text In",
-    title: "Word Down From Top",
-    blurb: "Each word drops in from above with opacity.",
-    sections: [
-      {
-        title: "Timing",
-        description: "Use this when the text should feel like it settles down into place.",
-        fields: [
-          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.5", hint: "Snappy around 0.2, smoother around 0.5." },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.2" }
-        ]
-      },
-      {
-        title: "Motion And Style",
-        description: "Set the travel amount and optionally enable blur for a softer downward settle.",
-        fields: [
-          { id: "distance", label: "Slide distance px (positive = from top)", type: "number", defaultValue: "40" },
+          { id: "direction", label: "Direction", type: "select", options: ["Right", "Left", "Bottom", "Top"], defaultValue: "Right" },
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "40" },
           { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "8", dependsOn: "blurEnabled" }
         ]
@@ -132,6 +58,32 @@ const tools = [
           { id: "rotationStart", label: "Starting rotation (deg)", type: "number", defaultValue: "-26" },
           { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "5", dependsOn: "blurEnabled" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "wordBounceIn",
+    group: "Text In",
+    title: "Word Bounce In",
+    blurb: "Each word slides in from an editable direction, overshoots, and settles.",
+    sections: [
+      {
+        title: "Timing",
+        description: "Control how long each word bounces in and how far apart the words fire.",
+        fields: [
+          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.58", hint: "Longer values give the bounce more room to settle." },
+          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.16" }
+        ]
+      },
+      {
+        title: "Motion And Style",
+        description: "Same directional controls as Word In, with a bouncy settle.",
+        fields: [
+          { id: "direction", label: "Direction", type: "select", options: ["Right", "Left", "Bottom", "Top"], defaultValue: "Right" },
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "48" },
+          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
+          { id: "blurAmt", label: "Start blur amount (px)", type: "number", defaultValue: "6", dependsOn: "blurEnabled" }
         ]
       }
     ]
@@ -544,23 +496,6 @@ const tools = [
     ]
   },
   {
-    id: "lookBevelLite",
-    group: "Looks",
-    title: "Bevel lite",
-    blurb: "Adds a restrained alpha bevel that works well on clean graphic layers.",
-    sections: [
-      {
-        title: "Bevel",
-        description: "Use lightly. This is for polished edge definition, not chunky faux-3D.",
-        fields: [
-          { id: "thickness", label: "Edge thickness", type: "number", defaultValue: "4" },
-          { id: "lightAngle", label: "Light angle (deg)", type: "number", defaultValue: "135" },
-          { id: "lightIntensity", label: "Light intensity", type: "number", defaultValue: "0.7" }
-        ]
-      }
-    ]
-  },
-  {
     id: "lookLiquidGlass",
     group: "Looks",
     title: "Liquid glass",
@@ -852,6 +787,11 @@ const sheetDescription = document.getElementById("sheetDescription");
 const settingsOverlay = document.getElementById("settingsOverlay");
 const globalSettingsOverlay = document.getElementById("globalSettingsOverlay");
 const globalStartSecInput = document.getElementById("globalStartSec");
+const globalStartColorEnabledInput = document.getElementById("globalStartColorEnabled");
+const globalStartColorInput = document.getElementById("globalStartColor");
+const globalStartColorWrap = document.getElementById("globalStartColorWrap");
+const globalColorSquare = document.getElementById("globalColorSquare");
+const globalHueBar = document.getElementById("globalHueBar");
 const tabBar = document.getElementById("tabBar");
 const applyButton = document.getElementById("applyTool");
 const openGlobalSettingsButton = document.getElementById("openGlobalSettings");
@@ -934,8 +874,102 @@ function persistSettings() {
 
 function normalizeGlobalSettings(payload) {
   return {
-    startSec: payload && payload.startSec !== undefined ? String(payload.startSec) : "Cursor"
+    startSec: payload && payload.startSec !== undefined ? String(payload.startSec) : "Cursor",
+    startColorEnabled: payload && payload.startColorEnabled === true,
+    startColor: payload && /^#[0-9a-f]{6}$/i.test(String(payload.startColor)) ? String(payload.startColor) : "#2d8cff"
   };
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function hexToRgb(hex) {
+  const normalized = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const value = normalized ? normalized[1] : "2d8cff";
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16)
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${[r, g, b].map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function rgbToHsv({ r, g, b }) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const delta = max - min;
+  let h = 0;
+
+  if (delta !== 0) {
+    if (max === rn) {
+      h = 60 * (((gn - bn) / delta) % 6);
+    } else if (max === gn) {
+      h = 60 * (((bn - rn) / delta) + 2);
+    } else {
+      h = 60 * (((rn - gn) / delta) + 4);
+    }
+  }
+
+  return {
+    h: h < 0 ? h + 360 : h,
+    s: max === 0 ? 0 : delta / max,
+    v: max
+  };
+}
+
+function hsvToRgb({ h, s, v }) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (h < 60) {
+    r = c; g = x;
+  } else if (h < 120) {
+    r = x; g = c;
+  } else if (h < 180) {
+    g = c; b = x;
+  } else if (h < 240) {
+    g = x; b = c;
+  } else if (h < 300) {
+    r = x; b = c;
+  } else {
+    r = c; b = x;
+  }
+
+  return {
+    r: (r + m) * 255,
+    g: (g + m) * 255,
+    b: (b + m) * 255
+  };
+}
+
+function setGlobalColorPickerFromHex(hex) {
+  const hsv = rgbToHsv(hexToRgb(hex));
+  globalColorSquare.style.setProperty("--picker-hue", String(Math.round(hsv.h)));
+  globalColorSquare.style.setProperty("--picker-saturation-pos", `${hsv.s * 100}%`);
+  globalColorSquare.style.setProperty("--picker-value-pos", `${(1 - hsv.v) * 100}%`);
+  globalHueBar.style.setProperty("--picker-hue", String(Math.round(hsv.h)));
+  globalHueBar.style.setProperty("--picker-hue-pos", `${(hsv.h / 360) * 100}%`);
+}
+
+function updateGlobalColorFromHsv(hsv) {
+  const next = {
+    h: clamp(hsv.h, 0, 359.999),
+    s: clamp(hsv.s, 0, 1),
+    v: clamp(hsv.v, 0, 1)
+  };
+  globalStartColorInput.value = rgbToHex(hsvToRgb(next));
+  setGlobalColorPickerFromHex(globalStartColorInput.value);
 }
 
 function loadGlobalSettings() {
@@ -1079,7 +1113,9 @@ function getToolSettings(toolId) {
 function getToolPayload(toolId) {
   return {
     ...getToolSettings(toolId),
-    startSec: globalSettings.startSec
+    startSec: globalSettings.startSec,
+    startColorEnabled: globalSettings.startColorEnabled,
+    startColor: globalSettings.startColor
   };
 }
 
@@ -1798,6 +1834,10 @@ function closeSettings() {
 
 function openGlobalSettings() {
   globalStartSecInput.value = globalSettings.startSec;
+  globalStartColorEnabledInput.checked = globalSettings.startColorEnabled;
+  globalStartColorInput.value = globalSettings.startColor;
+  setGlobalColorPickerFromHex(globalStartColorInput.value);
+  syncGlobalStartColorField();
   globalSettingsOverlay.classList.remove("hidden");
   globalSettingsOverlay.classList.remove("closing");
 }
@@ -1814,14 +1854,70 @@ function resetGlobalSettings() {
   globalSettings = normalizeGlobalSettings({});
   persistGlobalSettings();
   globalStartSecInput.value = globalSettings.startSec;
+  globalStartColorEnabledInput.checked = globalSettings.startColorEnabled;
+  globalStartColorInput.value = globalSettings.startColor;
+  setGlobalColorPickerFromHex(globalStartColorInput.value);
+  syncGlobalStartColorField();
   setStatus("Reset global settings.", "success");
 }
 
 function saveGlobalSettings() {
-  globalSettings = normalizeGlobalSettings({ startSec: globalStartSecInput.value });
+  globalSettings = normalizeGlobalSettings({
+    startSec: globalStartSecInput.value,
+    startColorEnabled: globalStartColorEnabledInput.checked,
+    startColor: globalStartColorInput.value
+  });
   persistGlobalSettings();
   setStatus("Saved global settings.", "success");
   closeGlobalSettings();
+}
+
+function syncGlobalStartColorField() {
+  globalStartColorWrap.style.opacity = globalStartColorEnabledInput.checked ? "1" : "0.45";
+  globalColorSquare.style.pointerEvents = globalStartColorEnabledInput.checked ? "auto" : "none";
+  globalHueBar.style.pointerEvents = globalStartColorEnabledInput.checked ? "auto" : "none";
+}
+
+function getGlobalPickerHsv() {
+  return rgbToHsv(hexToRgb(globalStartColorInput.value));
+}
+
+function updateGlobalColorFromSquareEvent(event) {
+  const rect = globalColorSquare.getBoundingClientRect();
+  const hsv = getGlobalPickerHsv();
+  updateGlobalColorFromHsv({
+    h: hsv.h,
+    s: clamp((event.clientX - rect.left) / rect.width, 0, 1),
+    v: clamp(1 - ((event.clientY - rect.top) / rect.height), 0, 1)
+  });
+}
+
+function updateGlobalColorFromHueEvent(event) {
+  const rect = globalHueBar.getBoundingClientRect();
+  const hsv = getGlobalPickerHsv();
+  updateGlobalColorFromHsv({
+    h: clamp((event.clientX - rect.left) / rect.width, 0, 1) * 360,
+    s: hsv.s,
+    v: hsv.v
+  });
+}
+
+function startGlobalColorDrag(event, updateFn) {
+  if (!globalStartColorEnabledInput.checked || event.button !== 0) {
+    return;
+  }
+
+  event.preventDefault();
+  updateFn(event);
+
+  const onMove = (moveEvent) => updateFn(moveEvent);
+  const onUp = () => {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  };
+
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
 }
 
 function hideToolHelp() {
@@ -2086,6 +2182,9 @@ document.getElementById("closeGlobalSettings").addEventListener("click", closeGl
 document.getElementById("saveGlobalSettings").addEventListener("click", saveGlobalSettings);
 document.getElementById("resetGlobalSettings").addEventListener("click", resetGlobalSettings);
 document.getElementById("globalSettingsBackdrop").addEventListener("click", closeGlobalSettings);
+globalStartColorEnabledInput.addEventListener("input", syncGlobalStartColorField);
+globalColorSquare.addEventListener("mousedown", (event) => startGlobalColorDrag(event, updateGlobalColorFromSquareEvent));
+globalHueBar.addEventListener("mousedown", (event) => startGlobalColorDrag(event, updateGlobalColorFromHueEvent));
 tabBar.addEventListener("click", (event) => {
   const tabButton = event.target.closest("[data-tab-id]");
   if (!tabButton || tabButton.dataset.tabId === activeTabId) {

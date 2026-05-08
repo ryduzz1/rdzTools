@@ -1669,6 +1669,69 @@ select {
   box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.12);
 }
 
+.color-picker {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.color-square {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  overflow: hidden;
+  cursor: crosshair;
+  background:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #fff, hsl(var(--picker-hue, 211), 100%, 50%));
+}
+
+.color-square-handle,
+.hue-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #f6f6f6;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), 0 1px 4px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.color-square-handle {
+  left: var(--picker-saturation-pos, 100%);
+  top: var(--picker-value-pos, 0%);
+  transform: translate(-50%, -50%);
+}
+
+.hue-bar {
+  position: relative;
+  height: 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  cursor: ew-resize;
+  background: linear-gradient(
+    to right,
+    #f00 0%,
+    #ff0 16.666%,
+    #0f0 33.333%,
+    #0ff 50%,
+    #00f 66.666%,
+    #f0f 83.333%,
+    #f00 100%
+  );
+}
+
+.hue-handle {
+  left: var(--picker-hue-pos, 58.6%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .checkbox-field {
   display: flex;
   gap: 10px;
