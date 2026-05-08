@@ -113,10 +113,10 @@ const tools = [
     ]
   },
   {
-    id: "wordBlurOutRight",
+    id: "wordOut",
     group: "Text Out",
-    title: "Word Out To Right",
-    blurb: "Each word slides right and fades out.",
+    title: "Word Out",
+    blurb: "Each word slides out in an editable direction and fades away.",
     sections: [
       {
         title: "Timing",
@@ -128,86 +128,12 @@ const tools = [
       },
       {
         title: "Motion And Style",
-        description: "Set the exit travel distance and optionally enable ending blur.",
+        description: "Choose where the words go, then dial in distance and optional blur.",
         fields: [
-          { id: "distance", label: "Slide distance px (positive = to right)", type: "number", defaultValue: "46" },
+          { id: "direction", label: "Direction", type: "select", options: ["Right", "Left", "Up", "Down"], defaultValue: "Right" },
+          { id: "distance", label: "Slide distance px", type: "number", defaultValue: "46" },
           { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
           { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "10", dependsOn: "blurEnabled" }
-        ]
-      }
-    ]
-  },
-  {
-    id: "wordBlurOutLeft",
-    group: "Text Out",
-    title: "Word Out To Left",
-    blurb: "Each word slides left and fades out.",
-    sections: [
-      {
-        title: "Timing",
-        description: "Control how long each word exits and how far apart the words fire.",
-        fields: [
-          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
-        ]
-      },
-      {
-        title: "Motion And Style",
-        description: "Set the exit travel distance and optionally enable ending blur.",
-        fields: [
-          { id: "distance", label: "Slide distance px (positive = to left)", type: "number", defaultValue: "46" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
-          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "10", dependsOn: "blurEnabled" }
-        ]
-      }
-    ]
-  },
-  {
-    id: "wordBlurOutUp",
-    group: "Text Out",
-    title: "Word Out Up",
-    blurb: "Each word lifts away with opacity.",
-    sections: [
-      {
-        title: "Timing",
-        description: "A quick vertical word exit for titles and callouts.",
-        fields: [
-          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
-        ]
-      },
-      {
-        title: "Motion And Style",
-        description: "Set how far the words travel upward and optionally enable blur.",
-        fields: [
-          { id: "distance", label: "Slide distance px (positive = up)", type: "number", defaultValue: "42" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
-          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "9", dependsOn: "blurEnabled" }
-        ]
-      }
-    ]
-  },
-  {
-    id: "wordBlurOutDown",
-    group: "Text Out",
-    title: "Word Out Down",
-    blurb: "Each word drops away with opacity.",
-    sections: [
-      {
-        title: "Timing",
-        description: "Use this when type should fall out cleanly.",
-        fields: [
-          { id: "wordDur", label: "Word duration (sec)", type: "number", defaultValue: "0.42" },
-          { id: "stagger", label: "Stagger between words (sec)", type: "number", defaultValue: "0.12" }
-        ]
-      },
-      {
-        title: "Motion And Style",
-        description: "Set how far the words travel downward and optionally enable blur.",
-        fields: [
-          { id: "distance", label: "Slide distance px (positive = down)", type: "number", defaultValue: "42" },
-          { id: "blurEnabled", label: "Enable word blur", type: "checkbox", defaultValue: false },
-          { id: "blurAmt", label: "End blur amount (px)", type: "number", defaultValue: "9", dependsOn: "blurEnabled" }
         ]
       }
     ]
