@@ -413,6 +413,83 @@ const tools = [
     ]
   },
   {
+    id: "shapeBurst",
+    group: "Standalone Effects",
+    title: "Shape burst",
+    blurb: "Creates outlined geometric shapes that burst from comp center and fade out.",
+    sections: [
+      {
+        title: "Burst",
+        description: "Radial outline shapes launch from the center with a soft ease-out fade.",
+        fields: [
+          { id: "count", label: "Shape count", type: "number", defaultValue: "8" },
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "2.05" },
+          { id: "distance", label: "Spread distance px", type: "number", defaultValue: "320" }
+        ]
+      },
+      {
+        title: "Style",
+        description: "Stroke-only circles, squares, triangles, diamonds, and plus marks.",
+        fields: [
+          { id: "size", label: "Shape size px", type: "number", defaultValue: "96" },
+          { id: "strokeWidth", label: "Stroke width px", type: "number", defaultValue: "8" },
+          { id: "color", label: "Stroke color", type: "color", defaultValue: "#2d8cff" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "ringPulse",
+    group: "Standalone Effects",
+    title: "Ring pulse",
+    blurb: "Creates staggered outline rings that expand from comp center and fade.",
+    sections: [
+      {
+        title: "Pulse",
+        description: "A single expanding ring for UI pings, highlights, and soft impact accents.",
+        fields: [
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "1.4" },
+          { id: "distance", label: "Final radius px", type: "number", defaultValue: "320" }
+        ]
+      },
+      {
+        title: "Style",
+        description: "Stroke-only rings with staggered timing.",
+        fields: [
+          { id: "size", label: "Start radius px", type: "number", defaultValue: "34" },
+          { id: "strokeWidth", label: "Stroke width px", type: "number", defaultValue: "7" },
+          { id: "color", label: "Stroke color", type: "color", defaultValue: "#2d8cff" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "lineBurst",
+    group: "Standalone Effects",
+    title: "Line burst",
+    blurb: "Creates radial line strokes that shoot outward from comp center.",
+    sections: [
+      {
+        title: "Burst",
+        description: "Fast radial strokes for flashes, impacts, and attention pops.",
+        fields: [
+          { id: "count", label: "Line count", type: "number", defaultValue: "18" },
+          { id: "duration", label: "Duration (sec)", type: "number", defaultValue: "1.05" },
+          { id: "distance", label: "Outer radius px", type: "number", defaultValue: "380" }
+        ]
+      },
+      {
+        title: "Style",
+        description: "Stroke-only rays with randomized length and rotation.",
+        fields: [
+          { id: "size", label: "Line length px", type: "number", defaultValue: "96" },
+          { id: "strokeWidth", label: "Stroke width px", type: "number", defaultValue: "6" },
+          { id: "color", label: "Stroke color", type: "color", defaultValue: "#f5c84c" }
+        ]
+      }
+    ]
+  },
+  {
     id: "lookSoftShadow",
     group: "Looks",
     title: "Soft shadow",
@@ -524,6 +601,14 @@ const tools = [
     group: "Rigging",
     title: "Pre-Comp",
     blurb: "Moves all selected layers into a new precomp.",
+    sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "unprecomposeSelected",
+    group: "Rigging",
+    title: "Decomp",
+    blurb: "Moves layers from the selected precomp back into the active comp.",
+    hiddenFromList: true,
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
   },
   {
@@ -648,10 +733,10 @@ const tools = [
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
   },
   {
-    id: "splitLayers",
+    id: "splitTextWords",
     group: "Rigging",
-    title: "Split layers",
-    blurb: "Splits selected layers at the current playhead time.",
+    title: "Split words",
+    blurb: "Converts a selected text layer into one positioned text layer per word.",
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
   },
   {
@@ -705,7 +790,7 @@ const compactToolButtons = [
   { id: "enableMotionBlur", label: "MBL" },
   { id: "sequenceLayers", label: "SEQ" },
   { id: "duplicateLayers", label: "DUP" },
-  { id: "splitLayers", label: "SPL" },
+  { id: "splitTextWords", label: "WRD" },
   { id: "splitTextCharacters", label: "CHR" },
   { id: "clearExpressions", label: "CLR" }
 ];
@@ -730,7 +815,10 @@ let favoritesHintDismissed = loadFavoritesHintDismissed();
 let activeTabId = "presets";
 let toolHelpCloseTimer = null;
 let selectedPhysicsState = { allSelectedArePhysics: false, selectedCount: 0 };
+let selectedPrecompState = { isSinglePrecomp: false, selectedCount: 0 };
+let precompModeAnimation = "";
 let physicsSelectionPollInFlight = false;
+let precompSelectionPollInFlight = false;
 
 const toolList = document.getElementById("toolList");
 const fieldMount = document.getElementById("fieldMount");
@@ -768,6 +856,9 @@ function getBridge() {
     async eval(script) {
       if (script.includes("getSelectionSummary")) {
         return "Mock mode: no AE host connected.";
+      }
+      if (script.includes("getSelectedPrecompState")) {
+        return JSON.stringify({ isSinglePrecomp: false, selectedCount: 0 });
       }
       if (script.includes("applyTool")) {
         return "OK: Mock mode applied tool.";
@@ -987,8 +1078,11 @@ function persistFavoritesHintDismissed() {
 }
 
 function toolBelongsToTab(tool, tabId) {
+  if (tool.hiddenFromList) {
+    return false;
+  }
   if (tabId === "presets") {
-    return tool.group === "Text In" || tool.group === "Text Out" || tool.group === "Layer In" || tool.group === "Looks";
+    return tool.group === "Text In" || tool.group === "Text Out" || tool.group === "Layer In" || tool.group === "Standalone Effects" || tool.group === "Looks";
   }
   if (tabId === "tools") {
     return tool.group === "Rigging";
@@ -1217,10 +1311,18 @@ function toolTileMarkup(tool) {
 }
 
 function primaryCommandMarkup(entry) {
-  const tool = toolMap[entry.id];
+  const isPrecompToggle = entry.id === "precomposeSelected" && selectedPrecompState.isSinglePrecomp;
+  const toolId = isPrecompToggle ? "unprecomposeSelected" : entry.id;
+  const tool = toolMap[toolId];
+  const icon = isPrecompToggle ? "unprecomp" : entry.icon;
+  const stateClass = [
+    isPrecompToggle ? "is-unprecomp" : "",
+    precompModeAnimation && entry.id === "precomposeSelected" ? precompModeAnimation : ""
+  ].filter(Boolean).join(" ");
+  const classSuffix = stateClass ? ` ${stateClass}` : "";
   return `
-    <button class="prime-command" data-run-tool="${entry.id}" aria-label="${tool.title}">
-      <span class="prime-icon prime-icon-${entry.icon}" aria-hidden="true"></span>
+    <button class="prime-command${classSuffix}" data-run-tool="${toolId}" aria-label="${tool.title}">
+      <span class="prime-icon prime-icon-${icon}" aria-hidden="true"></span>
       <span>${tool.title}</span>
     </button>
   `;
@@ -2030,9 +2132,51 @@ async function refreshPhysicsSelectionState() {
   }
 }
 
+async function refreshPrecompSelectionState() {
+  if (precompSelectionPollInFlight) {
+    return;
+  }
+
+  precompSelectionPollInFlight = true;
+  try {
+    const result = await bridge.eval("rdzTools.getSelectedPrecompState()");
+    const parsed = JSON.parse(result);
+    const nextState = {
+      isSinglePrecomp: !!parsed.isSinglePrecomp,
+      selectedCount: Number(parsed.selectedCount) || 0
+    };
+    if (
+      nextState.isSinglePrecomp !== selectedPrecompState.isSinglePrecomp ||
+      nextState.selectedCount !== selectedPrecompState.selectedCount
+    ) {
+      const modeChanged = nextState.isSinglePrecomp !== selectedPrecompState.isSinglePrecomp;
+      precompModeAnimation = modeChanged ? (nextState.isSinglePrecomp ? "mode-selected" : "mode-deselected") : "";
+      selectedPrecompState = nextState;
+      if (activeTabId === "tools") {
+        renderToolList();
+      }
+      if (modeChanged) {
+        window.setTimeout(() => {
+          precompModeAnimation = "";
+        }, 360);
+      }
+    }
+  } catch (error) {
+    selectedPrecompState = { isSinglePrecomp: false, selectedCount: 0 };
+    precompModeAnimation = "";
+  } finally {
+    precompSelectionPollInFlight = false;
+  }
+}
+
 function startPhysicsSelectionRefresh() {
   refreshPhysicsSelectionState();
   window.setInterval(refreshPhysicsSelectionState, 1200);
+}
+
+function startPrecompSelectionRefresh() {
+  refreshPrecompSelectionState();
+  window.setInterval(refreshPrecompSelectionState, 1200);
 }
 
 async function rerenderPhysicsBySelection() {
@@ -2046,6 +2190,7 @@ async function rerenderPhysicsBySelection() {
   }
   await refreshSelection();
   await refreshPhysicsSelectionState();
+  await refreshPrecompSelectionState();
 }
 
 async function applyActiveTool() {
@@ -2061,6 +2206,7 @@ async function applyActiveTool() {
   setStatus(result, ok ? "success" : "error");
   await refreshSelection();
   await refreshPhysicsSelectionState();
+  await refreshPrecompSelectionState();
 }
 
 async function applyToolById(toolId) {
@@ -2071,6 +2217,7 @@ async function applyToolById(toolId) {
   setStatus(result, ok ? "success" : "error");
   await refreshSelection();
   await refreshPhysicsSelectionState();
+  await refreshPrecompSelectionState();
 }
 
 async function applyActiveGraph() {
@@ -2401,3 +2548,4 @@ syncActiveToolRow();
 syncActionState();
 refreshSelection();
 startPhysicsSelectionRefresh();
+startPrecompSelectionRefresh();

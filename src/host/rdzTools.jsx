@@ -1764,6 +1764,419 @@ var rdzTools = (function () {
     comp.motionBlur = true;
   }
 
+  function normalizeShapeBurstSettings(comp, payload) {
+    return {
+      startSec: parseStartTime(comp, payload.startSec),
+      duration: Math.max(0.08, Math.min(4.0, isNaN(payload.duration) ? 2.05 : Number(payload.duration))),
+      distance: Math.max(12, Math.min(2000, isNaN(payload.distance) ? 320 : Number(payload.distance))),
+      count: Math.max(3, Math.min(48, Math.round(isNaN(payload.count) ? 8 : Number(payload.count)))),
+      size: Math.max(4, Math.min(300, isNaN(payload.size) ? 96 : Number(payload.size))),
+      strokeWidth: Math.max(0.5, Math.min(24, isNaN(payload.strokeWidth) ? 8 : Number(payload.strokeWidth))),
+      color: parseHexColor(payload.color || payload.startColor, [0.176, 0.549, 1])
+    };
+  }
+
+  function normalizeRingPulseSettings(comp, payload) {
+    return {
+      startSec: parseStartTime(comp, payload.startSec),
+      duration: Math.max(0.08, Math.min(4.0, isNaN(payload.duration) ? 1.4 : Number(payload.duration))),
+      distance: Math.max(12, Math.min(2200, isNaN(payload.distance) ? 320 : Number(payload.distance))),
+      count: 1,
+      size: Math.max(2, Math.min(800, isNaN(payload.size) ? 34 : Number(payload.size))),
+      strokeWidth: Math.max(0.5, Math.min(80, isNaN(payload.strokeWidth) ? 7 : Number(payload.strokeWidth))),
+      color: parseHexColor(payload.color || payload.startColor, [0.176, 0.549, 1])
+    };
+  }
+
+  function normalizeLineBurstSettings(comp, payload) {
+    return {
+      startSec: parseStartTime(comp, payload.startSec),
+      duration: Math.max(0.08, Math.min(4.0, isNaN(payload.duration) ? 1.05 : Number(payload.duration))),
+      distance: Math.max(12, Math.min(2400, isNaN(payload.distance) ? 380 : Number(payload.distance))),
+      count: Math.max(3, Math.min(80, Math.round(isNaN(payload.count) ? 18 : Number(payload.count)))),
+      size: Math.max(4, Math.min(600, isNaN(payload.size) ? 96 : Number(payload.size))),
+      strokeWidth: Math.max(0.5, Math.min(60, isNaN(payload.strokeWidth) ? 6 : Number(payload.strokeWidth))),
+      color: parseHexColor(payload.color, [0.961, 0.784, 0.298])
+    };
+  }
+
+  function setBurstEase(prop, t0, startValue, t1, endValue) {
+    if (!prop || prop.numKeys < 2) {
+      return;
+    }
+
+    var dimensions = getEaseDimensions(prop, 1);
+    var duration = Math.max(0.001, t1 - t0);
+    var start = valueToArray(startValue, dimensions);
+    var end = valueToArray(endValue, dimensions);
+    var hold = [];
+    var launch = [];
+    var soft = [];
+    for (var i = 0; i < dimensions; i += 1) {
+      hold.push(new KeyframeEase(0, 12));
+      launch.push(new KeyframeEase(((end[i] || 0) - (start[i] || 0)) / duration * 6.25, 10));
+      soft.push(new KeyframeEase(0, 96));
+    }
+
+    try {
+      prop.setInterpolationTypeAtKey(1, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+      prop.setInterpolationTypeAtKey(2, KeyframeInterpolationType.BEZIER, KeyframeInterpolationType.BEZIER);
+      prop.setTemporalEaseAtKey(1, hold, launch);
+      prop.setTemporalEaseAtKey(2, soft, hold);
+    } catch (easeError) {}
+  }
+
+  function addShapePath(vectors, vertices, closed) {
+    var path = vectors.addProperty("ADBE Vector Shape - Group");
+    var shape = new Shape();
+    var inTangents = [];
+    var outTangents = [];
+
+    for (var i = 0; i < vertices.length; i += 1) {
+      inTangents.push([0, 0]);
+      outTangents.push([0, 0]);
+    }
+
+    shape.vertices = vertices;
+    shape.inTangents = inTangents;
+    shape.outTangents = outTangents;
+    shape.closed = closed;
+    path.property("ADBE Vector Shape").setValue(shape);
+  }
+
+  function addBurstVectorShape(vectors, kind, size) {
+    var half = size / 2;
+
+    if (kind === "circle") {
+      var ellipse = vectors.addProperty("ADBE Vector Shape - Ellipse");
+      ellipse.property("ADBE Vector Ellipse Size").setValue([size, size]);
+      return;
+    }
+
+    if (kind === "square") {
+      var rect = vectors.addProperty("ADBE Vector Shape - Rect");
+      rect.property("ADBE Vector Rect Size").setValue([size, size]);
+      rect.property("ADBE Vector Rect Roundness").setValue(0);
+      return;
+    }
+
+    if (kind === "triangle") {
+      addShapePath(vectors, [[0, -half], [half * 0.9, half], [-half * 0.9, half]], true);
+      return;
+    }
+
+    if (kind === "diamond") {
+      addShapePath(vectors, [[0, -half], [half, 0], [0, half], [-half, 0]], true);
+      return;
+    }
+
+    addShapePath(vectors, [[-half, 0], [half, 0]], false);
+    addShapePath(vectors, [[0, -half], [0, half]], false);
+  }
+
+  function addBurstStroke(vectors, settings) {
+    var stroke = vectors.addProperty("ADBE Vector Graphic - Stroke");
+    setEffectValue(stroke, ["ADBE Vector Stroke Color", "Color", 2], settings.color);
+    setEffectValue(stroke, ["ADBE Vector Stroke Opacity", "Opacity", 4], 100);
+    setEffectValue(stroke, ["ADBE Vector Stroke Width", "Stroke Width", 5], settings.strokeWidth);
+    setEffectValue(stroke, ["ADBE Vector Stroke Line Cap", "Line Cap", 7], 2);
+    setEffectValue(stroke, ["ADBE Vector Stroke Line Join", "Line Join", 8], 2);
+  }
+
+  function getPrecompLayerForSource(comp, source) {
+    if (!source) {
+      return null;
+    }
+
+    for (var i = 1; i <= comp.numLayers; i += 1) {
+      var layer = comp.layer(i);
+      if (layer && layer.source === source) {
+        return layer;
+      }
+    }
+
+    return null;
+  }
+
+  function precomposeShapeBurstLayers(comp, layers, t0, t1, frame, namePrefix) {
+    if (!layers.length) {
+      return null;
+    }
+
+    var indices = [];
+    for (var i = 0; i < layers.length; i += 1) {
+      indices.push(layers[i].index);
+    }
+    indices.sort(function (a, b) { return a - b; });
+
+    var name = (namePrefix || "rdz_Shape_Burst") + "_" + Math.round(new Date().getTime() / 1000);
+    var precomp = comp.layers.precompose(indices, name, true);
+    var precompLayer = getPrecompLayerForSource(comp, precomp);
+    if (!precompLayer) {
+      return null;
+    }
+
+    precompLayer.name = name;
+    precompLayer.motionBlur = true;
+    try {
+      precompLayer.inPoint = Math.max(0, t0);
+      precompLayer.outPoint = Math.min(comp.duration, t1 + frame);
+    } catch (trimError) {}
+    precompLayer.selected = true;
+
+    var opacityProp = getTransformProp(precompLayer, "Opacity");
+    if (opacityProp) {
+      var fadeStart = Math.max(precompLayer.inPoint, t0);
+      var fadeEnd = Math.min(precompLayer.outPoint, fadeStart + frame * 5);
+      opacityProp.setValueAtTime(fadeStart, 0);
+      opacityProp.setValueAtTime(fadeEnd, 100);
+      try {
+        opacityProp.setInterpolationTypeAtKey(opacityProp.numKeys - 1, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+        opacityProp.setInterpolationTypeAtKey(opacityProp.numKeys, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+      } catch (opacityInterpolationError) {}
+    }
+
+    return precompLayer;
+  }
+
+  function applyShapeBurst(comp, settings) {
+    var created = [];
+    var kinds = ["circle", "square", "triangle", "diamond", "plus"];
+    var guaranteedTriangleIndex = Math.floor(seededUnitValue(settings.count * 31) * settings.count);
+    var center = [comp.width / 2, comp.height / 2];
+    var t0 = settings.startSec;
+    var t1 = t0 + settings.duration;
+    var frame = comp.frameDuration || (1 / 30);
+
+    for (var deselectIndex = 1; deselectIndex <= comp.numLayers; deselectIndex += 1) {
+      comp.layer(deselectIndex).selected = false;
+    }
+
+    for (var i = 0; i < settings.count; i += 1) {
+      var seed = i + 1;
+      var angle = ((Math.PI * 2) * i / settings.count) + ((seededUnitValue(seed * 23) - 0.5) * 0.42);
+      var distance = settings.distance * (0.72 + seededUnitValue(seed * 41) * 0.42);
+      var size = settings.size * (0.76 + seededUnitValue(seed * 59) * 0.48);
+      var kind = i === guaranteedTriangleIndex ? "triangle" : kinds[Math.min(kinds.length - 1, Math.floor(seededUnitValue(seed * 97) * kinds.length))];
+      var endPosition = [
+        center[0] + Math.cos(angle) * distance,
+        center[1] + Math.sin(angle) * distance
+      ];
+
+      var layer = comp.layers.addShape();
+      layer.name = "rdz Shape Burst " + (i + 1);
+      layer.label = 9;
+      layer.inPoint = t0;
+      layer.outPoint = t1 + frame;
+      layer.motionBlur = true;
+
+      var contents = layer.property("ADBE Root Vectors Group");
+      var group = contents.addProperty("ADBE Vector Group");
+      group.name = "Outline " + kind;
+      var vectors = group.property("ADBE Vectors Group");
+      addBurstVectorShape(vectors, kind, size);
+      addBurstStroke(vectors, settings);
+
+      var positionProp = getTransformProp(layer, "Position");
+      var opacityProp = getTransformProp(layer, "Opacity");
+      var scaleProp = getTransformProp(layer, "Scale");
+      var rotationProp = getTransformProp(layer, "Rotation");
+
+      positionProp.setValueAtTime(t0, center);
+      positionProp.setValueAtTime(t1, endPosition);
+      setBurstEase(positionProp, t0, center, t1, endPosition);
+
+      opacityProp.setValueAtTime(t0, 100);
+      opacityProp.setValueAtTime(t1, 0);
+      try {
+        opacityProp.setInterpolationTypeAtKey(opacityProp.numKeys - 1, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+        opacityProp.setInterpolationTypeAtKey(opacityProp.numKeys, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+      } catch (opacityInterpolationError) {}
+
+      var startScale = [70, 70];
+      var endScale = [128, 128];
+      scaleProp.setValueAtTime(t0, startScale);
+      scaleProp.setValueAtTime(t1, endScale);
+      setBurstEase(scaleProp, t0, startScale, t1, endScale);
+
+      var startRotation = seededUnitValue(seed * 67) * 90 - 45;
+      var endRotation = startRotation + (seededUnitValue(seed * 83) > 0.5 ? 95 : -95);
+      rotationProp.setValueAtTime(t0, startRotation);
+      rotationProp.setValueAtTime(t1, endRotation);
+      setBurstEase(rotationProp, t0, startRotation, t1, endRotation);
+
+      layer.selected = true;
+      created.push(layer);
+    }
+
+    comp.motionBlur = true;
+    var precompLayer = precomposeShapeBurstLayers(comp, created, t0, t1, frame);
+    if (precompLayer) {
+      return "OK: Created shape burst precomp with " + created.length + " outlined shape layer(s).";
+    }
+    return "OK: Created shape burst with " + created.length + " outlined shape layer(s).";
+  }
+
+  function addEllipseStrokeShape(layer, diameter, settings) {
+    var contents = layer.property("ADBE Root Vectors Group");
+    var group = contents.addProperty("ADBE Vector Group");
+    var vectors = group.property("ADBE Vectors Group");
+    var ellipse = vectors.addProperty("ADBE Vector Shape - Ellipse");
+    ellipse.property("ADBE Vector Ellipse Size").setValue([diameter, diameter]);
+    addBurstStroke(vectors, settings);
+    return group;
+  }
+
+  function setLinearPair(prop, firstKey, secondKey) {
+    try {
+      prop.setInterpolationTypeAtKey(firstKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+      prop.setInterpolationTypeAtKey(secondKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+    } catch (linearError) {}
+  }
+
+  function getVectorStrokeWidthProperty(group) {
+    if (!group) {
+      return null;
+    }
+
+    var vectors = group.property("ADBE Vectors Group");
+    if (!vectors) {
+      return null;
+    }
+
+    for (var i = 1; i <= vectors.numProperties; i += 1) {
+      var item = vectors.property(i);
+      if (item && item.matchName === "ADBE Vector Graphic - Stroke") {
+        return getEffectProperty(item, ["ADBE Vector Stroke Width", "Stroke Width", 5]);
+      }
+    }
+
+    return null;
+  }
+
+  function animateStrokeWidthLinear(group, t0, t1, startWidth, endWidth) {
+    var strokeWidthProp = getVectorStrokeWidthProperty(group);
+    if (!strokeWidthProp) {
+      return;
+    }
+
+    strokeWidthProp.setValueAtTime(t0, startWidth);
+    strokeWidthProp.setValueAtTime(t1, Math.max(0, endWidth));
+    setLinearPair(strokeWidthProp, strokeWidthProp.numKeys - 1, strokeWidthProp.numKeys);
+  }
+
+  function applyRingPulse(comp, settings) {
+    var created = [];
+    var center = [comp.width / 2, comp.height / 2];
+    var frame = comp.frameDuration || (1 / 30);
+    var stagger = settings.count > 1 ? settings.duration * 0.16 : 0;
+
+    for (var deselectIndex = 1; deselectIndex <= comp.numLayers; deselectIndex += 1) {
+      comp.layer(deselectIndex).selected = false;
+    }
+
+    for (var i = 0; i < settings.count; i += 1) {
+      var t0 = settings.startSec + stagger * i;
+      var t1 = t0 + settings.duration;
+      var layer = comp.layers.addShape();
+      layer.name = "rdz Ring Pulse " + (i + 1);
+      layer.label = 9;
+      layer.inPoint = settings.startSec;
+      layer.outPoint = t1 + frame;
+      layer.motionBlur = true;
+      var ringGroup = addEllipseStrokeShape(layer, settings.distance * 2, settings);
+
+      var positionProp = getTransformProp(layer, "Position");
+      var opacityProp = getTransformProp(layer, "Opacity");
+      var scaleProp = getTransformProp(layer, "Scale");
+      var startScaleValue = Math.max(1, settings.size / settings.distance * 100);
+      var endScaleValue = 100 + i * 18;
+      var startScale = [startScaleValue, startScaleValue];
+      var endScale = [endScaleValue, endScaleValue];
+
+      positionProp.setValue(center);
+      scaleProp.setValueAtTime(t0, startScale);
+      scaleProp.setValueAtTime(t1, endScale);
+      setBurstEase(scaleProp, t0, startScale, t1, endScale);
+
+      opacityProp.setValueAtTime(t0, i === 0 ? 100 : 76);
+      opacityProp.setValueAtTime(t1, 0);
+      setLinearPair(opacityProp, opacityProp.numKeys - 1, opacityProp.numKeys);
+      animateStrokeWidthLinear(ringGroup, t0, t1, settings.strokeWidth, Math.max(0.25, settings.strokeWidth * 0.12));
+
+      layer.selected = true;
+      created.push(layer);
+    }
+
+    comp.motionBlur = true;
+    var precompLayer = precomposeShapeBurstLayers(comp, created, settings.startSec, settings.startSec + settings.duration + stagger * (settings.count - 1), frame, "rdz_Ring_Pulse");
+    return precompLayer ? "OK: Created ring pulse precomp with " + created.length + " ring layer(s)." : "OK: Created ring pulse with " + created.length + " ring layer(s).";
+  }
+
+  function applyLineBurst(comp, settings) {
+    var created = [];
+    var center = [comp.width / 2, comp.height / 2];
+    var frame = comp.frameDuration || (1 / 30);
+    var t0 = settings.startSec;
+    var t1 = t0 + settings.duration;
+
+    for (var deselectIndex = 1; deselectIndex <= comp.numLayers; deselectIndex += 1) {
+      comp.layer(deselectIndex).selected = false;
+    }
+
+    for (var i = 0; i < settings.count; i += 1) {
+      var seed = i + 1;
+      var angle = ((Math.PI * 2) * i / settings.count) + ((seededUnitValue(seed * 19) - 0.5) * 0.26);
+      var lineLength = settings.size * (0.62 + seededUnitValue(seed * 37) * 0.78);
+      var inner = settings.distance * (0.1 + seededUnitValue(seed * 43) * 0.12);
+      var outer = settings.distance * (0.75 + seededUnitValue(seed * 53) * 0.34);
+      var endPosition = [
+        center[0] + Math.cos(angle) * outer,
+        center[1] + Math.sin(angle) * outer
+      ];
+
+      var layer = comp.layers.addShape();
+      layer.name = "rdz Line Burst " + (i + 1);
+      layer.label = 11;
+      layer.inPoint = t0;
+      layer.outPoint = t1 + frame;
+      layer.motionBlur = true;
+      var contents = layer.property("ADBE Root Vectors Group");
+      var group = contents.addProperty("ADBE Vector Group");
+      var vectors = group.property("ADBE Vectors Group");
+      addShapePath(vectors, [[-lineLength / 2, 0], [lineLength / 2, 0]], false);
+      addBurstStroke(vectors, settings);
+
+      var positionProp = getTransformProp(layer, "Position");
+      var opacityProp = getTransformProp(layer, "Opacity");
+      var scaleProp = getTransformProp(layer, "Scale");
+      var rotationProp = getTransformProp(layer, "Rotation");
+      var startPosition = [
+        center[0] + Math.cos(angle) * inner,
+        center[1] + Math.sin(angle) * inner
+      ];
+
+      positionProp.setValueAtTime(t0, startPosition);
+      positionProp.setValueAtTime(t1, endPosition);
+      setBurstEase(positionProp, t0, startPosition, t1, endPosition);
+      rotationProp.setValue(angle * 180 / Math.PI);
+      scaleProp.setValueAtTime(t0, [30, 100]);
+      scaleProp.setValueAtTime(t1, [118, 100]);
+      setBurstEase(scaleProp, t0, [30, 100], t1, [118, 100]);
+      opacityProp.setValueAtTime(t0, 100);
+      opacityProp.setValueAtTime(t1, 0);
+      setLinearPair(opacityProp, opacityProp.numKeys - 1, opacityProp.numKeys);
+      animateStrokeWidthLinear(group, t0, t1, settings.strokeWidth, Math.max(0.25, settings.strokeWidth * 0.16));
+
+      layer.selected = true;
+      created.push(layer);
+    }
+
+    comp.motionBlur = true;
+    var precompLayer = precomposeShapeBurstLayers(comp, created, t0, t1, frame, "rdz_Line_Burst");
+    return precompLayer ? "OK: Created line burst precomp with " + created.length + " line layer(s)." : "OK: Created line burst with " + created.length + " line layer(s).";
+  }
+
   function moveAnchorPoint(layer, xFactor, yFactor) {
     if (!layer.sourceRectAtTime) {
       throw new Error("Layer does not support sourceRectAtTime.");
@@ -1831,6 +2244,60 @@ var rdzTools = (function () {
     return selectedLayers.length;
   }
 
+  function isPrecompLayer(layer) {
+    return !!(layer && layer.source && layer.source instanceof CompItem);
+  }
+
+  function getSingleSelectedPrecompLayer(comp) {
+    var selectedLayers = getSelectedLayers(comp);
+    if (selectedLayers.length !== 1 || !isPrecompLayer(selectedLayers[0])) {
+      return null;
+    }
+    return selectedLayers[0];
+  }
+
+  function unprecomposeSelectedLayer(comp) {
+    var precompLayer = getSingleSelectedPrecompLayer(comp);
+    if (!precompLayer) {
+      throw new Error("Select exactly one precomp layer.");
+    }
+
+    var sourceComp = precompLayer.source;
+    if (!sourceComp || !sourceComp.numLayers) {
+      throw new Error("Selected precomp has no layers to unprecompose.");
+    }
+
+    var copiedLayers = [];
+    var timeOffset = precompLayer.startTime - sourceComp.displayStartTime;
+    for (var i = sourceComp.numLayers; i >= 1; i -= 1) {
+      var sourceLayer = sourceComp.layer(i);
+      sourceLayer.copyToComp(comp);
+      var copiedLayer = comp.layer(1);
+      try {
+        copiedLayer.startTime += timeOffset;
+      } catch (startTimeError) {}
+      copiedLayers.push(copiedLayer);
+    }
+
+    for (var layerIndex = 1; layerIndex <= comp.numLayers; layerIndex += 1) {
+      try {
+        comp.layer(layerIndex).selected = false;
+      } catch (deselectError) {}
+    }
+
+    try {
+      precompLayer.remove();
+    } catch (removeError) {}
+
+    for (var selectIndex = 0; selectIndex < copiedLayers.length; selectIndex += 1) {
+      try {
+        copiedLayers[selectIndex].selected = true;
+      } catch (selectError) {}
+    }
+
+    return copiedLayers.length;
+  }
+
   function saveCurrentFrame(comp) {
     var folder = Folder.desktop || Folder.myDocuments;
     var defaultName = "rdzTools_" + comp.name.replace(/[\\\/:\*\?\"\<\>\|]/g, "_") + "_" + Math.round(comp.time * comp.frameRate) + ".png";
@@ -1893,17 +2360,114 @@ var rdzTools = (function () {
     return String(value || "").replace(/ /g, "\u00A0");
   }
 
-  function measureTextWidth(measureLayer, textValue, time) {
+  function getTextLineMap(text) {
+    var lines = [];
+    var charMap = [];
+    var currentLine = "";
+    var lineIndex = 0;
+
+    for (var i = 0; i < text.length; i += 1) {
+      var character = text.charAt(i);
+      if (character === "\r" || character === "\n") {
+        lines.push(currentLine);
+        currentLine = "";
+        lineIndex += 1;
+        if (character === "\r" && text.charAt(i + 1) === "\n") {
+          i += 1;
+        }
+        continue;
+      }
+
+      charMap[i] = {
+        line: lineIndex,
+        column: currentLine.length
+      };
+      currentLine += character;
+    }
+
+    lines.push(currentLine);
+    return {
+      lines: lines,
+      charMap: charMap
+    };
+  }
+
+  function measureTextRect(measureLayer, textValue, time) {
     if (!textValue || !textValue.length) {
-      return 0;
+      return null;
     }
 
     var measureTextProps = measureLayer.property("ADBE Text Properties");
     var measureSourceText = measureTextProps.property("ADBE Text Document");
     setTextDocumentText(measureSourceText, normalizeSplitText(textValue));
     try {
-      return measureLayer.sourceRectAtTime(time, false).width;
+      return measureLayer.sourceRectAtTime(time, false);
     } catch (rectError) {}
+    return null;
+  }
+
+  function measureSplitLineOffset(measureLayer, fullRect, lineCount, time) {
+    if (lineCount <= 1) {
+      return 0;
+    }
+
+    var sampleRect = measureTextRect(measureLayer, "M", time);
+    var sampleHeight = sampleRect && sampleRect.height ? sampleRect.height : 0;
+    var measuredOffset = (fullRect.height - sampleHeight) / (lineCount - 1);
+    if (measuredOffset > 0) {
+      return measuredOffset;
+    }
+
+    return fullRect.height / lineCount;
+  }
+
+  function getTextWordRanges(text, lineMap) {
+    var ranges = [];
+    var currentWord = "";
+    var currentStart = -1;
+    var currentLocation = null;
+
+    function pushCurrentWord() {
+      if (currentWord.length && currentLocation) {
+        ranges.push({
+          text: currentWord,
+          sourceIndex: currentStart,
+          line: currentLocation.line,
+          column: currentLocation.column
+        });
+      }
+      currentWord = "";
+      currentStart = -1;
+      currentLocation = null;
+    }
+
+    for (var i = 0; i < text.length; i += 1) {
+      var character = text.charAt(i);
+      if (character === "\r" || character === "\n" || character === " " || character === "\t") {
+        pushCurrentWord();
+        continue;
+      }
+
+      if (!currentWord.length) {
+        currentStart = i;
+        currentLocation = lineMap.charMap[i];
+      }
+      currentWord += character;
+    }
+
+    pushCurrentWord();
+    return ranges;
+  }
+
+  function measureTextWidth(measureLayer, textValue, time) {
+    if (!textValue || !textValue.length) {
+      return 0;
+    }
+
+    var rect = measureTextRect(measureLayer, textValue, time);
+    if (rect) {
+      return rect.width;
+    }
     return 0;
   }
 
@@ -1912,13 +2476,10 @@ var rdzTools = (function () {
       return 0;
     }
 
-    var measureTextProps = measureLayer.property("ADBE Text Properties");
-    var measureSourceText = measureTextProps.property("ADBE Text Document");
-    setTextDocumentText(measureSourceText, normalizeSplitText(textValue));
-    try {
-      var rect = measureLayer.sourceRectAtTime(time, false);
+    var rect = measureTextRect(measureLayer, textValue, time);
+    if (rect) {
       return rect.left + rect.width;
-    } catch (rectError) {}
+    }
     return measureTextWidth(measureLayer, textValue, time);
   }
 
@@ -2061,6 +2622,8 @@ var rdzTools = (function () {
     }
     var created = 0;
     var createdLayers = [];
+    var lineMap = getTextLineMap(text);
+    var lineOffset = measureSplitLineOffset(measureLayer, fullRect, lineMap.lines.length, time);
 
     try {
       for (var i = 0; i < text.length; i += 1) {
@@ -2072,8 +2635,16 @@ var rdzTools = (function () {
           continue;
         }
 
-        var beforeWidth = measureTextAdvance(measureLayer, text.substring(0, i), time);
-        var afterWidth = measureTextAdvance(measureLayer, text.substring(0, i + 1), time);
+        var charLocation = lineMap.charMap[i];
+        if (!charLocation) {
+          continue;
+        }
+
+        var lineText = lineMap.lines[charLocation.line] || "";
+        var beforeLineText = lineText.substring(0, charLocation.column);
+        var throughLineText = lineText.substring(0, charLocation.column + 1);
+        var beforeWidth = measureTextAdvance(measureLayer, beforeLineText, time);
+        var afterWidth = measureTextAdvance(measureLayer, throughLineText, time);
         var charAdvance = Math.max(3, afterWidth - beforeWidth);
         var charWidth = Math.max(4, charAdvance);
 
@@ -2088,7 +2659,7 @@ var rdzTools = (function () {
         var newPositionProp = getTransformProp(newLayer, "Position");
         var newAnchor = [newRect.left + newRect.width / 2, newRect.top + newRect.height / 2];
         var localCenterX = beforeWidth + newRect.left + newRect.width / 2;
-        var localCenterY = newRect.top + newRect.height / 2;
+        var localCenterY = newRect.top + newRect.height / 2 + charLocation.line * lineOffset;
         var compCenter = layerPointToCompPoint(localCenterX, localCenterY, sourcePosition, sourceAnchor, sourceScale, sourceRotation);
         var newPosition = [compCenter.x, compCenter.y];
         if (sourceAnchor.length > 2) {
@@ -2111,6 +2682,104 @@ var rdzTools = (function () {
           character: true,
           sourceIndex: i
         });
+        createdLayers.push(newLayer);
+        created += 1;
+      }
+    } finally {
+      try {
+        measureLayer.remove();
+      } catch (removeMeasureError) {}
+    }
+
+    if (created > 0) {
+      for (var layerIndex = 1; layerIndex <= comp.numLayers; layerIndex += 1) {
+        try {
+          comp.layer(layerIndex).selected = false;
+        } catch (deselectError) {}
+      }
+      try {
+        layer.remove();
+      } catch (removeSourceError) {}
+      for (var selectIndex = 0; selectIndex < createdLayers.length; selectIndex += 1) {
+        try {
+          createdLayers[selectIndex].selected = true;
+        } catch (selectError) {}
+      }
+    }
+    return created;
+  }
+
+  function splitTextLayerWords(comp) {
+    var layer = getTextLayer(comp);
+    if (!layer) {
+      throw new Error("Select a text layer.");
+    }
+
+    var textProps = layer.property("ADBE Text Properties");
+    var sourceText = textProps.property("ADBE Text Document");
+    var baseDocument = sourceText.value;
+    var text = baseDocument.text || "";
+    if (!text.length) {
+      throw new Error("Selected text layer is empty.");
+    }
+
+    var time = comp.time;
+    var fullRect = layer.sourceRectAtTime(time, false);
+    var sourcePositionProp = getTransformProp(layer, "Position");
+    var sourceAnchorProp = getTransformProp(layer, "Anchor Point");
+    var sourceScaleProp = getTransformProp(layer, "Scale");
+    var sourceRotationProp = getTransformProp(layer, "Rotation");
+    if (!sourcePositionProp || !sourceAnchorProp || !sourceScaleProp) {
+      throw new Error("Text layer is missing transform properties.");
+    }
+    var sourcePosition = getPropertyValueAtTime(sourcePositionProp, time);
+    var sourceAnchor = getPropertyValueAtTime(sourceAnchorProp, time);
+    var sourceScale = getPropertyValueAtTime(sourceScaleProp, time);
+    var sourceRotation = sourceRotationProp ? Number(getPropertyValueAtTime(sourceRotationProp, time)) || 0 : 0;
+    var measureLayer = layer.duplicate();
+    measureLayer.name = layer.name + "_Word_Measure";
+    var measureOpacity = getTransformProp(measureLayer, "Opacity");
+    if (measureOpacity) {
+      try {
+        measureOpacity.setValue(0);
+      } catch (measureOpacityError) {}
+    }
+
+    var created = 0;
+    var createdLayers = [];
+    var lineMap = getTextLineMap(text);
+    var lineOffset = measureSplitLineOffset(measureLayer, fullRect, lineMap.lines.length, time);
+    var words = getTextWordRanges(text, lineMap);
+
+    try {
+      for (var i = 0; i < words.length; i += 1) {
+        var word = words[i];
+        var lineText = lineMap.lines[word.line] || "";
+        var beforeLineText = lineText.substring(0, word.column);
+        var beforeWidth = measureTextAdvance(measureLayer, beforeLineText, time);
+
+        var newLayer = layer.duplicate();
+        newLayer.name = layer.name + "_Word_" + (i + 1);
+        var newTextProps = newLayer.property("ADBE Text Properties");
+        var newSourceText = newTextProps.property("ADBE Text Document");
+        setTextDocumentText(newSourceText, word.text);
+        removeOldTextAnimators(newLayer);
+        var newRect = newLayer.sourceRectAtTime(time, false);
+        var newAnchorProp = getTransformProp(newLayer, "Anchor Point");
+        var newPositionProp = getTransformProp(newLayer, "Position");
+        var newAnchor = [newRect.left + newRect.width / 2, newRect.top + newRect.height / 2];
+        var localCenterX = beforeWidth + newRect.left + newRect.width / 2;
+        var localCenterY = newRect.top + newRect.height / 2 + word.line * lineOffset;
+        var compCenter = layerPointToCompPoint(localCenterX, localCenterY, sourcePosition, sourceAnchor, sourceScale, sourceRotation);
+        var newPosition = [compCenter.x, compCenter.y];
+        if (sourceAnchor.length > 2) {
+          newAnchor.push(sourceAnchor[2]);
+        }
+        if (sourcePosition.length > 2) {
+          newPosition.push(sourcePosition[2]);
+        }
+        setTransformValueAtCurrentState(newAnchorProp, newAnchor, time);
+        setTransformValueAtCurrentState(newPositionProp, newPosition, time);
         createdLayers.push(newLayer);
         created += 1;
       }
@@ -3887,6 +4556,18 @@ var rdzTools = (function () {
         return "OK: Applied layer blur fade in to " + blurLayers.length + " layer(s).";
       }
 
+      if (toolId === "shapeBurst") {
+        return applyShapeBurst(comp, normalizeShapeBurstSettings(comp, payload));
+      }
+
+      if (toolId === "ringPulse") {
+        return applyRingPulse(comp, normalizeRingPulseSettings(comp, payload));
+      }
+
+      if (toolId === "lineBurst") {
+        return applyLineBurst(comp, normalizeLineBurstSettings(comp, payload));
+      }
+
       if (toolId === "lookSoftShadow" || toolId === "lookLongShadow" || toolId === "lookLiquidGlass") {
         var lookLayers = requireSelectedLayers(comp);
         var lookSettings = normalizeLookSettings(payload);
@@ -3938,6 +4619,11 @@ var rdzTools = (function () {
       if (toolId === "precomposeSelected") {
         var precomposedCount = precomposeSelectedLayers(comp);
         return "OK: Precomposed " + precomposedCount + " selected layer(s).";
+      }
+
+      if (toolId === "unprecomposeSelected") {
+        var unprecomposedCount = unprecomposeSelectedLayer(comp);
+        return "OK: Unprecomposed " + unprecomposedCount + " layer(s).";
       }
 
       if (toolId === "centerInComp") {
@@ -3992,6 +4678,11 @@ var rdzTools = (function () {
       if (toolId === "splitLayers") {
         var splitCount = splitSelectedLayers(comp);
         return "OK: Split " + splitCount + " layer(s).";
+      }
+
+      if (toolId === "splitTextWords") {
+        var wordCount = splitTextLayerWords(comp);
+        return "OK: Split text into " + wordCount + " word layer(s).";
       }
 
       if (toolId === "splitTextCharacters") {
@@ -4098,6 +4789,17 @@ var rdzTools = (function () {
     return 'Active comp "' + comp.name + '".';
   }
 
+  function getSelectedPrecompState() {
+    var comp = getActiveComp();
+    if (!comp) {
+      return '{"isSinglePrecomp":false,"selectedCount":0}';
+    }
+
+    var selectedLayers = getSelectedLayers(comp);
+    var isSinglePrecomp = selectedLayers.length === 1 && isPrecompLayer(selectedLayers[0]);
+    return '{"isSinglePrecomp":' + (isSinglePrecomp ? "true" : "false") + ',"selectedCount":' + selectedLayers.length + '}';
+  }
+
   function ping() {
     return "pong";
   }
@@ -4107,6 +4809,7 @@ var rdzTools = (function () {
     applyTool: applyTool,
     getPhysicsSignature: getPhysicsSignature,
     getSelectedPhysicsState: getSelectedPhysicsState,
+    getSelectedPrecompState: getSelectedPrecompState,
     getSelectionSummary: getSelectionSummary,
     ping: ping,
     readGraphPreset: readGraphPreset,
