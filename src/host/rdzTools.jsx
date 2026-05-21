@@ -1,6 +1,9 @@
 var rdzTools = (function () {
   var PHYSICS_MARKER_PREFIX = "rdzTools Physics ";
   var SPLIT_CHAR_PREFIX = "rdzTools Split Character ";
+  var SHATTER_SHARD_PREFIX = "rdzTools Shatter Shard ";
+  var rigidBodyJob = null;
+  var rigidBodyJobSequence = 1;
 
   function getActiveComp() {
     var item = app.project ? app.project.activeItem : null;
@@ -2581,6 +2584,27 @@ var rdzTools = (function () {
     return null;
   }
 
+  function setShatterShardData(layer, data) {
+    try {
+      layer.comment = SHATTER_SHARD_PREFIX + stringifyPayload(data);
+    } catch (commentError) {}
+  }
+
+  function getShatterShardData(layer) {
+    try {
+      if (layer.comment && layer.comment.indexOf(SHATTER_SHARD_PREFIX) === 0) {
+        return parsePayload(layer.comment.substring(SHATTER_SHARD_PREFIX.length));
+      }
+    } catch (commentError) {}
+
+    var physicsData = getPhysicsMarkerData(layer);
+    if (physicsData && physicsData.shardData) {
+      return physicsData.shardData;
+    }
+
+    return null;
+  }
+
   function getCharacterPhysicsPadding(size) {
     return Math.max(0.75, Math.min(3, size * 0.05));
   }
@@ -2877,6 +2901,11 @@ var rdzTools = (function () {
     if (isNaN(durationValue)) {
       durationValue = payload.duration;
     }
+    var quality = String(payload.quality || "Standard").toLowerCase();
+    if (quality !== "draft" && quality !== "high") {
+      quality = "standard";
+    }
+    var defaultKeyEvery = quality === "draft" ? 4 : 2;
     return {
       startSec: parseStartTime(comp, payload.startSec),
       duration: Math.max(comp.frameDuration, Math.min(15, isNaN(durationValue) ? 15 : Number(durationValue))),
@@ -2884,7 +2913,8 @@ var rdzTools = (function () {
       bounce: Math.max(0, Math.min(1, isNaN(payload.bounce) ? 0.18 : Number(payload.bounce))),
       friction: Math.max(0, Math.min(1, isNaN(payload.friction) ? 0.62 : Number(payload.friction))),
       characterScatter: Math.max(0, Math.min(2400, isNaN(payload.characterScatter) ? 160 : Number(payload.characterScatter))),
-      keyEvery: Math.max(1, Math.min(12, Math.round(isNaN(payload.keyEvery) ? 2 : Number(payload.keyEvery)))),
+      quality: quality,
+      keyEvery: Math.max(1, Math.min(12, Math.round(isNaN(payload.keyEvery) ? defaultKeyEvery : Number(payload.keyEvery)))),
       boundedByComp: payload.boundedByComp !== false,
       interactWithEachOther: payload.interactWithEachOther !== false,
       explodeOutward: payload.explodeOutward === true,
@@ -2906,6 +2936,65 @@ var rdzTools = (function () {
     }
   }
 
+  function getMaskBoundsRect(layer) {
+    var masks = null;
+    try {
+      masks = layer.property("ADBE Mask Parade");
+    } catch (maskParadeError) {}
+    if (!masks || !masks.numProperties) {
+      return null;
+    }
+
+    var minX = null;
+    var minY = null;
+    var maxX = null;
+    var maxY = null;
+    for (var maskIndex = 1; maskIndex <= masks.numProperties; maskIndex += 1) {
+      var mask = masks.property(maskIndex);
+      if (!mask) {
+        continue;
+      }
+      var shapeProp = null;
+      try {
+        shapeProp = mask.property("ADBE Mask Shape");
+      } catch (shapeError) {}
+      if (!shapeProp) {
+        continue;
+      }
+      var shape = null;
+      try {
+        shape = shapeProp.value;
+      } catch (shapeValueError) {}
+      if (!shape || !shape.vertices || !shape.vertices.length) {
+        continue;
+      }
+      for (var vertexIndex = 0; vertexIndex < shape.vertices.length; vertexIndex += 1) {
+        var vertex = shape.vertices[vertexIndex];
+        var x = Number(vertex[0]) || 0;
+        var y = Number(vertex[1]) || 0;
+        minX = minX === null ? x : Math.min(minX, x);
+        minY = minY === null ? y : Math.min(minY, y);
+        maxX = maxX === null ? x : Math.max(maxX, x);
+        maxY = maxY === null ? y : Math.max(maxY, y);
+      }
+    }
+
+    if (minX === null || maxX <= minX || maxY <= minY) {
+      return null;
+    }
+
+    var width = layer.width || 64;
+    var height = layer.height || 64;
+    var anchor = getTransformProp(layer, "Anchor Point");
+    var anchorValue = anchor ? anchor.value : [width / 2, height / 2];
+    return {
+      left: minX - Number(anchorValue[0] || 0),
+      top: minY - Number(anchorValue[1] || 0),
+      width: Math.max(2, maxX - minX),
+      height: Math.max(2, maxY - minY)
+    };
+  }
+
   function getLayerRect(layer, time) {
     var splitData = getSplitCharacterData(layer);
     if (splitData && splitData.width > 0 && splitData.height > 0) {
@@ -2918,6 +3007,22 @@ var rdzTools = (function () {
         character: splitData.character === true,
         sourceIndex: isNaN(splitData.sourceIndex) ? null : Number(splitData.sourceIndex)
       };
+    }
+
+    var shardData = getShatterShardData(layer);
+    if (shardData && shardData.width > 0 && shardData.height > 0) {
+      return {
+        left: Number(shardData.left) || 0,
+        top: Number(shardData.top) || 0,
+        width: Math.max(2, Number(shardData.width) || 2),
+        height: Math.max(2, Number(shardData.height) || 2),
+        sourceIndex: isNaN(shardData.sourceIndex) ? null : Number(shardData.sourceIndex)
+      };
+    }
+
+    var maskRect = getMaskBoundsRect(layer);
+    if (maskRect && maskRect.width > 0 && maskRect.height > 0) {
+      return maskRect;
     }
 
     try {
@@ -3146,15 +3251,40 @@ var rdzTools = (function () {
       aBox.maxY >= bBox.minY;
   }
 
-  function getBroadphasePairs(bodies) {
-    var entries = [];
-    for (var i = 0; i < bodies.length; i += 1) {
-      entries.push({
-        body: bodies[i],
-        aabb: getBodyAabb(bodies[i])
-      });
+  function getRigidBodySubsteps(settings, bodyCount) {
+    if (!settings.interactWithEachOther) {
+      return settings.quality === "high" ? 2 : 1;
     }
+    if (settings.quality === "draft") {
+      return bodyCount > 120 ? 1 : 2;
+    }
+    if (settings.quality === "high") {
+      return bodyCount > 180 ? 4 : 6;
+    }
+    return bodyCount > 180 ? 2 : 4;
+  }
 
+  function getRigidBodyCollisionPasses(settings, bodyCount) {
+    if (settings.quality === "draft") {
+      return bodyCount > 120 ? 1 : 2;
+    }
+    if (settings.quality === "high") {
+      return bodyCount > 180 ? 6 : 8;
+    }
+    return bodyCount > 180 ? 3 : 4;
+  }
+
+  function getBroadphaseGridCellSize(entries, comp) {
+    var totalSize = 0;
+    for (var i = 0; i < entries.length; i += 1) {
+      totalSize += Math.max(entries[i].aabb.maxX - entries[i].aabb.minX, entries[i].aabb.maxY - entries[i].aabb.minY);
+    }
+    var averageSize = entries.length ? totalSize / entries.length : 64;
+    var compSize = Math.max(32, Math.min(comp.width, comp.height) / 10);
+    return Math.max(32, Math.min(compSize, averageSize * 2.4));
+  }
+
+  function getSweepBroadphasePairs(entries) {
     entries.sort(function (a, b) {
       return a.aabb.minX - b.aabb.minX;
     });
@@ -3176,6 +3306,69 @@ var rdzTools = (function () {
       }
     }
     return pairs;
+  }
+
+  function getGridBroadphasePairs(entries, comp) {
+    var cellSize = getBroadphaseGridCellSize(entries, comp);
+    var cells = {};
+    var pairs = [];
+    var seen = {};
+
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var minCellX = Math.floor(entry.aabb.minX / cellSize);
+      var maxCellX = Math.floor(entry.aabb.maxX / cellSize);
+      var minCellY = Math.floor(entry.aabb.minY / cellSize);
+      var maxCellY = Math.floor(entry.aabb.maxY / cellSize);
+
+      for (var cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+        for (var cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+          var cellKey = cellX + "," + cellY;
+          var cell = cells[cellKey];
+          if (!cell) {
+            cell = [];
+            cells[cellKey] = cell;
+          }
+
+          for (var c = 0; c < cell.length; c += 1) {
+            var other = cell[c];
+            if (entry.body.sleeping && other.body.sleeping) {
+              continue;
+            }
+            if (entry.aabb.minX > other.aabb.maxX || entry.aabb.maxX < other.aabb.minX || entry.aabb.minY > other.aabb.maxY || entry.aabb.maxY < other.aabb.minY) {
+              continue;
+            }
+            var lowIndex = entry.index < other.index ? entry.index : other.index;
+            var highIndex = entry.index < other.index ? other.index : entry.index;
+            var pairKey = lowIndex + ":" + highIndex;
+            if (seen[pairKey]) {
+              continue;
+            }
+            seen[pairKey] = true;
+            pairs.push(entry.index < other.index ? [entry.body, other.body] : [other.body, entry.body]);
+          }
+          cell.push(entry);
+        }
+      }
+    }
+
+    return pairs;
+  }
+
+  function getBroadphasePairs(bodies, comp, settings) {
+    var entries = [];
+    for (var i = 0; i < bodies.length; i += 1) {
+      entries.push({
+        index: i,
+        body: bodies[i],
+        aabb: getBodyAabb(bodies[i])
+      });
+    }
+
+    if (entries.length > 32 && comp && settings && settings.quality !== "high") {
+      return getGridBroadphasePairs(entries, comp);
+    }
+    return getSweepBroadphasePairs(entries);
   }
 
   function getBodyCompLimits(body, comp) {
@@ -3809,9 +4002,11 @@ var rdzTools = (function () {
   function updateBodySleepState(body, comp, settings) {
     var speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy);
     var angularSpeed = Math.abs(body.angularVelocity || 0);
-    var speedThreshold = settings.adaptiveDuration ? (body.isCharacterBody ? 7.5 : 5) : (body.isCharacterBody ? 2.5 : 1.5);
-    var angularThreshold = settings.adaptiveDuration ? (body.isCharacterBody ? 8 : 5) : (body.isCharacterBody ? 2 : 1);
-    var requiredSleepFrames = settings.adaptiveDuration ? (body.isCharacterBody ? 12 : 16) : (body.isCharacterBody ? 24 : 30);
+    var sleepMultiplier = settings.quality === "draft" ? 1.8 : (settings.quality === "high" ? 0.85 : 1.25);
+    var frameMultiplier = settings.quality === "draft" ? 0.55 : (settings.quality === "high" ? 1.15 : 0.8);
+    var speedThreshold = (settings.adaptiveDuration ? (body.isCharacterBody ? 7.5 : 5) : (body.isCharacterBody ? 2.5 : 1.5)) * sleepMultiplier;
+    var angularThreshold = (settings.adaptiveDuration ? (body.isCharacterBody ? 8 : 5) : (body.isCharacterBody ? 2 : 1)) * sleepMultiplier;
+    var requiredSleepFrames = Math.max(4, Math.round((settings.adaptiveDuration ? (body.isCharacterBody ? 12 : 16) : (body.isCharacterBody ? 24 : 30)) * frameMultiplier));
     var stablySupported = isBodyStablySupportedByFloor(body, comp);
     var motionSettled = settings.adaptiveDuration && body.age > 0.25;
     if (speed < speedThreshold && angularSpeed < angularThreshold && (stablySupported || motionSettled)) {
@@ -3916,10 +4111,12 @@ var rdzTools = (function () {
     }
 
     var splitData = getSplitCharacterData(layer);
+    var shardData = getShatterShardData(layer);
     var marker = new MarkerValue(PHYSICS_MARKER_PREFIX + stringifyPayload({
       settings: settings,
       startSignature: getPhysicsLayerStartSignature(layer, settings),
-      splitData: splitData
+      splitData: splitData,
+      shardData: shardData
     }));
 
     for (var i = markerProp.numKeys; i >= 1; i -= 1) {
@@ -4089,7 +4286,7 @@ var rdzTools = (function () {
 
     for (var frame = 1; frame <= totalFrames; frame += 1) {
       var time = startTime + frame * dt;
-      var substeps = settings.interactWithEachOther ? 6 : 2;
+      var substeps = getRigidBodySubsteps(settings, bodies.length);
       var stepDt = dt / substeps;
 
       for (var step = 0; step < substeps; step += 1) {
@@ -4112,10 +4309,10 @@ var rdzTools = (function () {
         }
 
         if (settings.interactWithEachOther) {
-          var passes = Math.min(8, Math.max(2, bodies.length));
+          var passes = getRigidBodyCollisionPasses(settings, bodies.length);
           for (var pass = 0; pass < passes; pass += 1) {
             var collisionCount = 0;
-            var broadphasePairs = getBroadphasePairs(bodies);
+            var broadphasePairs = getBroadphasePairs(bodies, comp, settings);
             for (var pairIndex = 0; pairIndex < broadphasePairs.length; pairIndex += 1) {
               if (resolveBodyCollision(broadphasePairs[pairIndex][0], broadphasePairs[pairIndex][1], settings)) {
                 collisionCount += 1;
@@ -4178,6 +4375,300 @@ var rdzTools = (function () {
 
   function applyRigidBodySimulation(comp, settings) {
     return applyRigidBodySimulationToLayers(comp, requireSelectedLayers(comp), settings, true);
+  }
+
+  function scheduleRigidBodyJobChunk() {
+    try {
+      app.scheduleTask("rdzTools._runRigidBodyJobChunk()", 10, false);
+    } catch (scheduleError) {
+      runRigidBodyJobChunk();
+    }
+  }
+
+  function createRigidBodySimulationJob(comp, layers, settings, markLayers, undoName) {
+    var bodies = [];
+    for (var i = 0; i < layers.length; i += 1) {
+      var body = getRigidBodyFromLayer(layers[i], comp, settings, i);
+      if (body) {
+        bodies.push(body);
+      }
+    }
+
+    if (!bodies.length) {
+      throw new Error("Selected layers need Position and Scale properties.");
+    }
+
+    var dt = comp.frameDuration;
+    var startTime = settings.startSec;
+    if (settings.explodeOutward) {
+      sampleRigidBodies(bodies, startTime, comp, settings, false);
+      primeCharacterBodies(bodies, settings, comp);
+    } else {
+      primeCharacterBodies(bodies, settings, comp);
+      sampleRigidBodies(bodies, startTime, comp, settings, false);
+    }
+
+    return {
+      id: "rigidBodyJob" + (rigidBodyJobSequence++),
+      state: "running",
+      phase: "simulate",
+      message: "Simulating rigid bodies...",
+      progress: 0,
+      canCancel: true,
+      cancelRequested: false,
+      comp: comp,
+      bodies: bodies,
+      settings: settings,
+      markLayers: markLayers !== false,
+      dt: dt,
+      totalFrames: Math.max(1, Math.round(settings.duration / dt)),
+      currentFrame: 1,
+      startTime: startTime,
+      lastBakeTime: startTime,
+      bakeIndex: 0,
+      undoOpen: false,
+      undoName: undoName
+    };
+  }
+
+  function setRigidBodyJobError(job, error) {
+    job.state = "error";
+    job.phase = "error";
+    job.progress = 0;
+    job.canCancel = false;
+    job.message = "Error: " + error.message;
+    if (job.undoOpen) {
+      try { app.endUndoGroup(); } catch (endError) {}
+      job.undoOpen = false;
+    }
+  }
+
+  function cancelRigidBodyJob(job) {
+    job.state = "canceled";
+    job.phase = "canceled";
+    job.progress = 0;
+    job.canCancel = false;
+    job.message = "OK: Rigid body simulation canceled.";
+    if (job.undoOpen) {
+      try { app.endUndoGroup(); } catch (endError) {}
+      job.undoOpen = false;
+    }
+  }
+
+  function runRigidBodyJobFrame(job) {
+    var time = job.startTime + job.currentFrame * job.dt;
+    var substeps = getRigidBodySubsteps(job.settings, job.bodies.length);
+    var stepDt = job.dt / substeps;
+    var bodies = job.bodies;
+    var settings = job.settings;
+    var comp = job.comp;
+
+    for (var step = 0; step < substeps; step += 1) {
+      for (var b = 0; b < bodies.length; b += 1) {
+        var current = bodies[b];
+        if (current.sleeping) {
+          continue;
+        }
+        current.vy += settings.gravity * stepDt;
+        current.x += current.vx * stepDt;
+        current.y += current.vy * stepDt;
+        current.rotation += current.angularVelocity * stepDt;
+        current.age += stepDt;
+      }
+
+      if (settings.boundedByComp) {
+        for (var preBoundIndex = 0; preBoundIndex < bodies.length; preBoundIndex += 1) {
+          resolveCompBounds(bodies[preBoundIndex], comp, settings);
+        }
+      }
+
+      if (settings.interactWithEachOther) {
+        var passes = getRigidBodyCollisionPasses(settings, bodies.length);
+        for (var pass = 0; pass < passes; pass += 1) {
+          var collisionCount = 0;
+          var broadphasePairs = getBroadphasePairs(bodies, comp, settings);
+          for (var pairIndex = 0; pairIndex < broadphasePairs.length; pairIndex += 1) {
+            if (resolveBodyCollision(broadphasePairs[pairIndex][0], broadphasePairs[pairIndex][1], settings)) {
+              collisionCount += 1;
+            }
+          }
+          if (settings.boundedByComp) {
+            for (var passBoundIndex = 0; passBoundIndex < bodies.length; passBoundIndex += 1) {
+              resolveCompBounds(bodies[passBoundIndex], comp, settings);
+            }
+          }
+          if (collisionCount === 0) {
+            break;
+          }
+        }
+      }
+
+      if (settings.boundedByComp) {
+        for (var boundIndex = 0; boundIndex < bodies.length; boundIndex += 1) {
+          resolveCompBounds(bodies[boundIndex], comp, settings);
+        }
+      }
+
+      for (var sleepIndex = 0; sleepIndex < bodies.length; sleepIndex += 1) {
+        dampBodyMotion(bodies[sleepIndex], settings, stepDt);
+        updateBodySleepState(bodies[sleepIndex], comp, settings);
+      }
+    }
+
+    var settled = areAllBodiesSleeping(bodies);
+    if (settled || job.currentFrame === job.totalFrames || job.currentFrame % settings.keyEvery === 0) {
+      sampleRigidBodies(bodies, time, comp, settings);
+    }
+    job.currentFrame += 1;
+    job.progress = Math.min(0.9, (job.currentFrame / job.totalFrames) * 0.9);
+    if (settled || job.currentFrame > job.totalFrames) {
+      job.phase = "bake";
+      job.canCancel = false;
+      job.message = "Baking rigid body keyframes...";
+      job.progress = 0.9;
+    }
+  }
+
+  function runRigidBodyJobBakeStep(job) {
+    if (!job.undoOpen) {
+      app.beginUndoGroup(job.undoName || "rdzTools rigidBodySim");
+      job.undoOpen = true;
+    }
+
+    var bodyBudget = job.bodies.length;
+    while (job.bakeIndex < job.bodies.length && bodyBudget > 0) {
+      var bakedBody = job.bodies[job.bakeIndex];
+      if (bakedBody.samples.length > 0) {
+        job.lastBakeTime = Math.max(job.lastBakeTime, bakedBody.samples[bakedBody.samples.length - 1].time);
+      }
+      bakeRigidBodySamples(bakedBody);
+      try {
+        bakedBody.layer.outPoint = Math.max(bakedBody.layer.outPoint, job.lastBakeTime + job.comp.frameDuration);
+      } catch (bodyOutPointError) {}
+      bakedBody.layer.motionBlur = true;
+      if (job.markLayers) {
+        markLayerAsPhysics(bakedBody.layer, job.settings);
+      }
+      job.bakeIndex += 1;
+      bodyBudget -= 1;
+    }
+
+    job.progress = 0.9 + (Math.min(1, job.bakeIndex / job.bodies.length) * 0.1);
+    if (job.bakeIndex >= job.bodies.length) {
+      try {
+        job.comp.duration = Math.max(job.comp.duration, job.lastBakeTime + job.comp.frameDuration);
+      } catch (compDurationError) {}
+      job.comp.motionBlur = true;
+      job.state = "done";
+      job.phase = "done";
+      job.progress = 1;
+      job.canCancel = false;
+      job.message = "OK: Baked rigid body simulation to " + job.bodies.length + " layer(s).";
+      if (job.undoOpen) {
+        try { app.endUndoGroup(); } catch (endError) {}
+        job.undoOpen = false;
+      }
+    }
+  }
+
+  function runRigidBodyJobChunk() {
+    var job = rigidBodyJob;
+    if (!job || job.state !== "running") {
+      return;
+    }
+
+    try {
+      if (job.cancelRequested && job.phase === "simulate") {
+        cancelRigidBodyJob(job);
+        return;
+      }
+
+      if (job.phase === "simulate") {
+        var chunkStarted = (new Date()).getTime();
+        var frameBudget = 8;
+        while (job.phase === "simulate" && frameBudget > 0 && ((new Date()).getTime() - chunkStarted) < 80) {
+          runRigidBodyJobFrame(job);
+          frameBudget -= 1;
+          if (job.cancelRequested) {
+            cancelRigidBodyJob(job);
+            return;
+          }
+        }
+      } else if (job.phase === "bake") {
+        runRigidBodyJobBakeStep(job);
+      }
+
+      if (job.state === "running") {
+        scheduleRigidBodyJobChunk();
+      }
+    } catch (error) {
+      setRigidBodyJobError(job, error);
+    }
+  }
+
+  function rigidBodyJobStatusPayload(job) {
+    if (!job) {
+      return stringifyPayload({
+        ok: false,
+        state: "error",
+        progress: 0,
+        message: "Error: No rigid body simulation is running.",
+        canCancel: false
+      });
+    }
+    return stringifyPayload({
+      ok: job.state !== "error",
+      jobId: job.id,
+      state: job.state,
+      phase: job.phase,
+      progress: job.progress,
+      message: job.message,
+      canCancel: job.canCancel
+    });
+  }
+
+  function startRigidBodySimulationJob(rawPayload) {
+    var comp = getActiveComp();
+    if (!comp) {
+      return stringifyPayload({ ok: false, state: "error", progress: 0, message: "Error: No active comp.", canCancel: false });
+    }
+    if (rigidBodyJob && rigidBodyJob.state === "running") {
+      return stringifyPayload({ ok: false, state: "error", progress: rigidBodyJob.progress, message: "Error: A rigid body simulation is already running.", canCancel: false });
+    }
+
+    try {
+      rigidBodyJob = createRigidBodySimulationJob(comp, requireSelectedLayers(comp), normalizeRigidBodySettings(comp, parsePayload(rawPayload)), true, "rdzTools rigidBodySim");
+      scheduleRigidBodyJobChunk();
+      return rigidBodyJobStatusPayload(rigidBodyJob);
+    } catch (error) {
+      rigidBodyJob = {
+        id: "rigidBodyJob" + (rigidBodyJobSequence++),
+        state: "error",
+        phase: "error",
+        progress: 0,
+        message: "Error: " + error.message,
+        canCancel: false
+      };
+      return rigidBodyJobStatusPayload(rigidBodyJob);
+    }
+  }
+
+  function getRigidBodyJobStatus(jobId) {
+    if (!rigidBodyJob || (jobId && rigidBodyJob.id !== jobId)) {
+      return rigidBodyJobStatusPayload(null);
+    }
+    return rigidBodyJobStatusPayload(rigidBodyJob);
+  }
+
+  function cancelRigidBodyJobById(jobId) {
+    if (!rigidBodyJob || (jobId && rigidBodyJob.id !== jobId)) {
+      return rigidBodyJobStatusPayload(null);
+    }
+    if (rigidBodyJob.state === "running" && rigidBodyJob.canCancel) {
+      rigidBodyJob.cancelRequested = true;
+      rigidBodyJob.message = "Canceling rigid body simulation...";
+    }
+    return rigidBodyJobStatusPayload(rigidBodyJob);
   }
 
   function applyTextExplodeOut(comp, payload) {
@@ -4404,6 +4895,194 @@ var rdzTools = (function () {
     return layers;
   }
 
+  function normalizeImageShatterSettings(comp, payload) {
+    return {
+      startSec: parseStartTime(comp, payload.startSec),
+      pieceCount: Math.max(12, Math.min(220, isNaN(payload.pieceCount) ? 72 : Math.round(Number(payload.pieceCount))))
+    };
+  }
+
+  function getLayerSourceSize(layer) {
+    if (layer.source && layer.source.width && layer.source.height) {
+      return { width: Number(layer.source.width), height: Number(layer.source.height) };
+    }
+
+    if (layer.width && layer.height) {
+      return { width: Number(layer.width), height: Number(layer.height) };
+    }
+
+    throw new Error("Image Shatter needs selected image, footage, or precomp layers.");
+  }
+
+  function makePolygonMaskShape(vertices) {
+    var shape = new Shape();
+    var inTangents = [];
+    var outTangents = [];
+    for (var i = 0; i < vertices.length; i += 1) {
+      inTangents.push([0, 0]);
+      outTangents.push([0, 0]);
+    }
+    shape.vertices = vertices;
+    shape.inTangents = inTangents;
+    shape.outTangents = outTangents;
+    shape.closed = true;
+    return shape;
+  }
+
+  function getPolygonVertexBounds(vertices) {
+    var minX = null;
+    var minY = null;
+    var maxX = null;
+    var maxY = null;
+    for (var i = 0; i < vertices.length; i += 1) {
+      var vertex = vertices[i];
+      var x = Number(vertex[0]) || 0;
+      var y = Number(vertex[1]) || 0;
+      minX = minX === null ? x : Math.min(minX, x);
+      minY = minY === null ? y : Math.min(minY, y);
+      maxX = maxX === null ? x : Math.max(maxX, x);
+      maxY = maxY === null ? y : Math.max(maxY, y);
+    }
+    if (minX === null) {
+      return null;
+    }
+    return {
+      minX: minX,
+      minY: minY,
+      maxX: maxX,
+      maxY: maxY,
+      width: Math.max(2, maxX - minX),
+      height: Math.max(2, maxY - minY)
+    };
+  }
+
+  function getShardPhysicsData(layer, vertices, sourceIndex) {
+    var bounds = getPolygonVertexBounds(vertices);
+    if (!bounds) {
+      return null;
+    }
+    var width = layer.width || 64;
+    var height = layer.height || 64;
+    var anchor = getTransformProp(layer, "Anchor Point");
+    var anchorValue = anchor ? anchor.value : [width / 2, height / 2];
+    return {
+      left: bounds.minX - Number(anchorValue[0] || 0),
+      top: bounds.minY - Number(anchorValue[1] || 0),
+      width: bounds.width,
+      height: bounds.height,
+      sourceIndex: sourceIndex
+    };
+  }
+
+  function clearLayerMasks(layer) {
+    var masks = layer.property("ADBE Mask Parade");
+    if (!masks) {
+      return null;
+    }
+
+    for (var i = masks.numProperties; i >= 1; i -= 1) {
+      try {
+        masks.property(i).remove();
+      } catch (maskError) {}
+    }
+    return masks;
+  }
+
+  function setShardMask(layer, vertices) {
+    var masks = clearLayerMasks(layer);
+    if (!masks) {
+      throw new Error("Selected layer does not support masks.");
+    }
+
+    var mask = masks.addProperty("ADBE Mask Atom");
+    mask.name = "rdzTools Shard";
+    try {
+      mask.maskMode = MaskMode.ADD;
+    } catch (maskModeError) {}
+
+    var shapeProp = mask.property("ADBE Mask Shape");
+    if (!shapeProp) {
+      throw new Error("Could not create shard mask.");
+    }
+    shapeProp.setValue(makePolygonMaskShape(vertices));
+  }
+
+  function buildShatterGrid(size, settings) {
+    var aspect = Math.max(0.1, size.width / Math.max(1, size.height));
+    var cellTarget = Math.max(6, settings.pieceCount / 2);
+    var rows = Math.max(2, Math.round(Math.sqrt(cellTarget / aspect)));
+    var cols = Math.max(2, Math.ceil(cellTarget / rows));
+    var cellW = size.width / cols;
+    var cellH = size.height / rows;
+    var points = [];
+
+    for (var x = 0; x <= cols; x += 1) {
+      points[x] = [];
+      for (var y = 0; y <= rows; y += 1) {
+        var px = x * cellW;
+        var py = y * cellH;
+        if (x > 0 && x < cols) {
+          px += (seededUnitValue(x * 97 + y * 53) - 0.5) * cellW * 0.58;
+        }
+        if (y > 0 && y < rows) {
+          py += (seededUnitValue(x * 71 + y * 131) - 0.5) * cellH * 0.58;
+        }
+        points[x][y] = [Math.max(0, Math.min(size.width, px)), Math.max(0, Math.min(size.height, py))];
+      }
+    }
+
+    return { points: points, cols: cols, rows: rows };
+  }
+
+  function shatterImageLayer(layer, comp, settings) {
+    if (layer.matchName === "ADBE Text Layer") {
+      throw new Error("Image Shatter works on selected image, footage, solid, or precomp layers, not text layers.");
+    }
+
+    var size = getLayerSourceSize(layer);
+    if (size.width <= 0 || size.height <= 0) {
+      throw new Error("Selected layer has no usable image bounds.");
+    }
+
+    var grid = buildShatterGrid(size, settings);
+    var created = [];
+    var shardIndex = 0;
+    for (var x = 0; x < grid.cols; x += 1) {
+      for (var y = 0; y < grid.rows; y += 1) {
+        var p00 = grid.points[x][y];
+        var p10 = grid.points[x + 1][y];
+        var p01 = grid.points[x][y + 1];
+        var p11 = grid.points[x + 1][y + 1];
+        var useForwardDiagonal = seededUnitValue(x * 149 + y * 173) > 0.5;
+        var triangles = useForwardDiagonal ? [[p00, p10, p11], [p00, p11, p01]] : [[p00, p10, p01], [p10, p11, p01]];
+
+        for (var t = 0; t < triangles.length; t += 1) {
+          var shard = layer.duplicate();
+          shard.name = sanitizeLayerName(layer.name) + "_Shard_" + (shardIndex + 1);
+          setShardMask(shard, triangles[t]);
+          setShatterShardData(shard, getShardPhysicsData(shard, triangles[t], shardIndex));
+          shard.selected = true;
+          created.push(shard);
+          shardIndex += 1;
+        }
+      }
+    }
+
+    layer.enabled = false;
+    layer.selected = false;
+    return created.length;
+  }
+
+  function applyImageShatter(comp, payload) {
+    var layers = requireSelectedLayers(comp);
+    var settings = normalizeImageShatterSettings(comp, payload);
+    var createdCount = 0;
+    for (var i = 0; i < layers.length; i += 1) {
+      createdCount += shatterImageLayer(layers[i], comp, settings);
+    }
+    return "OK: Shattered " + layers.length + " layer(s) into " + createdCount + " piece(s).";
+  }
+
   function applyTool(toolId, rawPayload) {
     var comp = getActiveComp();
     if (!comp) {
@@ -4414,6 +5093,10 @@ var rdzTools = (function () {
     app.beginUndoGroup("rdzTools " + toolId);
 
     try {
+      if (toolId === "imageShatter") {
+        return applyImageShatter(comp, payload);
+      }
+
       if (toolId === "textExplodeOut") {
         return applyTextExplodeOut(comp, payload);
       }
@@ -4805,8 +5488,11 @@ var rdzTools = (function () {
   }
 
   return {
+    _runRigidBodyJobChunk: runRigidBodyJobChunk,
     applyGraphPreset: applyGraphPreset,
     applyTool: applyTool,
+    cancelRigidBodyJob: cancelRigidBodyJobById,
+    getRigidBodyJobStatus: getRigidBodyJobStatus,
     getPhysicsSignature: getPhysicsSignature,
     getSelectedPhysicsState: getSelectedPhysicsState,
     getSelectedPrecompState: getSelectedPrecompState,
@@ -4814,6 +5500,7 @@ var rdzTools = (function () {
     ping: ping,
     readGraphPreset: readGraphPreset,
     rerenderPhysics: rerenderPhysics,
-    rerenderSelectedPhysics: rerenderSelectedPhysics
+    rerenderSelectedPhysics: rerenderSelectedPhysics,
+    startRigidBodySimulationJob: startRigidBodySimulationJob
   };
 }());

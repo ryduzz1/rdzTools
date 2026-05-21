@@ -27,6 +27,17 @@
         <button id="applyTool" class="apply">Apply</button>
       </div>
 
+      <div id="physicsProgress" class="physics-progress hidden" role="status" aria-live="polite">
+        <div class="physics-progress-copy">
+          <span id="physicsProgressLabel">Preparing rigid body simulation...</span>
+          <span id="physicsProgressPercent">0%</span>
+        </div>
+        <div class="physics-progress-track" aria-hidden="true">
+          <span id="physicsProgressBar" class="physics-progress-bar"></span>
+        </div>
+        <button id="cancelPhysicsProgress" class="ghost physics-cancel-button">Cancel</button>
+      </div>
+
       <main class="list-shell">
         <div id="toolList" class="tool-list"></div>
       </main>

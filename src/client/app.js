@@ -652,6 +652,7 @@ const tools = [
           { id: "gravity", label: "Gravity (px/sec/sec)", type: "number", defaultValue: "1800" },
           { id: "bounce", label: "Bounce (0-1)", type: "number", defaultValue: "0.18" },
           { id: "friction", label: "Friction (0-1)", type: "number", defaultValue: "0.62" },
+          { id: "quality", label: "Quality", type: "select", options: ["Draft", "Standard", "High"], defaultValue: "Standard" },
           { id: "keyEvery", label: "Key every N frames", type: "number", defaultValue: "2" }
         ]
       },
@@ -759,6 +760,21 @@ const tools = [
     title: "Clear expressions",
     blurb: "Disables expressions on common transform properties for selected layers.",
     sections: [{ title: "Action", description: "No settings.", fields: [] }]
+  },
+  {
+    id: "imageShatter",
+    group: "Miscellaneous",
+    title: "Image Shatter",
+    blurb: "Splits selected image layers into lots of jagged glass-like pieces.",
+    sections: [
+      {
+        title: "Shatter",
+        description: "Duplicates the selected image layer into static triangular shards.",
+        fields: [
+          { id: "pieceCount", label: "Target pieces", type: "number", defaultValue: "72" }
+        ]
+      }
+    ]
   }
 ];
 
@@ -794,6 +810,9 @@ const compactToolButtons = [
   { id: "splitTextCharacters", label: "CHR" },
   { id: "clearExpressions", label: "CLR" }
 ];
+const miscellaneousToolButtons = [
+  { id: "imageShatter" }
+];
 const graphBounds = { x: 14, y: 10, width: 340, height: 276 };
 const bridge = getBridge();
 
@@ -819,6 +838,9 @@ let selectedPrecompState = { isSinglePrecomp: false, selectedCount: 0 };
 let precompModeAnimation = "";
 let physicsSelectionPollInFlight = false;
 let precompSelectionPollInFlight = false;
+let activePhysicsJobId = null;
+let physicsProgressTimer = null;
+let physicsCancelRequested = false;
 
 const toolList = document.getElementById("toolList");
 const fieldMount = document.getElementById("fieldMount");
@@ -840,6 +862,11 @@ const actionbar = document.getElementById("actionbar");
 const toolHelpPopup = document.getElementById("toolHelpPopup");
 const toolHelpTitle = document.getElementById("toolHelpTitle");
 const toolHelpCopy = document.getElementById("toolHelpCopy");
+const physicsProgress = document.getElementById("physicsProgress");
+const physicsProgressLabel = document.getElementById("physicsProgressLabel");
+const physicsProgressPercent = document.getElementById("physicsProgressPercent");
+const physicsProgressBar = document.getElementById("physicsProgressBar");
+const cancelPhysicsProgressButton = document.getElementById("cancelPhysicsProgress");
 
 function getBridge() {
   if (typeof window.__adobe_cep__ !== "undefined") {
@@ -859,6 +886,23 @@ function getBridge() {
       }
       if (script.includes("getSelectedPrecompState")) {
         return JSON.stringify({ isSinglePrecomp: false, selectedCount: 0 });
+      }
+      if (script.includes("startRigidBodySimulationJob")) {
+        window.__mockRigidBodyJobStartedAt = Date.now();
+        return JSON.stringify({ ok: true, jobId: "mock-rigid-body-job" });
+      }
+      if (script.includes("getRigidBodyJobStatus")) {
+        const elapsed = Math.min(1, (Date.now() - (window.__mockRigidBodyJobStartedAt || Date.now())) / 1800);
+        return JSON.stringify({
+          ok: true,
+          state: elapsed >= 1 ? "done" : "running",
+          progress: elapsed,
+          message: elapsed >= 1 ? "OK: Mock mode baked rigid body simulation." : "Simulating rigid bodies...",
+          canCancel: elapsed < 0.9
+        });
+      }
+      if (script.includes("cancelRigidBodyJob")) {
+        return JSON.stringify({ ok: true, state: "canceled", progress: 0, message: "OK: Rigid body simulation canceled.", canCancel: false });
       }
       if (script.includes("applyTool")) {
         return "OK: Mock mode applied tool.";
@@ -1310,6 +1354,30 @@ function toolTileMarkup(tool) {
   `;
 }
 
+function toolRunRowMarkup(tool) {
+  const isEdited = hasCustomSettings(tool.id);
+  const animationDelay = hasRenderedListOnce ? "" : `animation-delay:${Math.min(180, indexOfTool(tool.id) * 22)}ms`;
+
+  return `
+    <div class="tool-row run-tool-row ${rowAnimationClass()} ${isEdited ? "has-custom-settings" : ""}" data-tool-id="${tool.id}" style="${animationDelay}">
+      <button class="tool-main" data-run-tool="${tool.id}" aria-label="${tool.title}">
+        <span class="tool-title-wrap">
+          <strong>${tool.title}</strong>
+        </span>
+      </button>
+      <div class="tool-actions">
+        ${isEdited ? '<span class="tool-indicator" aria-hidden="true"></span>' : ""}
+        <button class="icon-button" data-edit-tool="${tool.id}" aria-label="Edit settings">
+          <svg class="edit-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 11.5L11.8 2.7a1.4 1.4 0 0 1 2 2L5 13.5 2.5 14z"></path>
+            <path d="M10.8 3.7l1.5 1.5"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 function primaryCommandMarkup(entry) {
   const isPrecompToggle = entry.id === "precomposeSelected" && selectedPrecompState.isSinglePrecomp;
   const toolId = isPrecompToggle ? "unprecomposeSelected" : entry.id;
@@ -1385,6 +1453,10 @@ function renderToolsPanel() {
       <div class="compact-command-grid">
         ${compactToolButtons.map(compactCommandMarkup).join("")}
       </div>
+      <section class="group-block misc-tools-block" aria-label="Miscellaneous tools">
+        <div class="group-head">Miscellaneous</div>
+        ${miscellaneousToolButtons.map((entry) => toolRunRowMarkup(toolMap[entry.id])).join("")}
+      </section>
     </section>
   `;
 }
@@ -1523,6 +1595,90 @@ function renderGraphPanel() {
 
 function setStatus(message, tone = "normal") {
   return { message: message, tone: tone };
+}
+
+function parseHostJson(result, fallbackMessage) {
+  try {
+    return JSON.parse(result);
+  } catch (error) {
+    return { ok: false, state: "error", progress: 0, message: result || fallbackMessage };
+  }
+}
+
+function showPhysicsProgress(message) {
+  physicsProgress.classList.remove("hidden");
+  physicsProgressLabel.textContent = message || "Preparing rigid body simulation...";
+  physicsProgressPercent.textContent = "0%";
+  physicsProgressBar.style.width = "0%";
+  cancelPhysicsProgressButton.disabled = false;
+}
+
+function updatePhysicsProgress(status) {
+  const progress = Math.max(0, Math.min(1, Number(status.progress) || 0));
+  physicsProgressLabel.textContent = status.message || "Simulating rigid bodies...";
+  physicsProgressPercent.textContent = `${Math.round(progress * 100)}%`;
+  physicsProgressBar.style.width = `${progress * 100}%`;
+  cancelPhysicsProgressButton.disabled = physicsCancelRequested || status.canCancel === false;
+}
+
+function hidePhysicsProgressSoon() {
+  window.setTimeout(() => {
+    if (!activePhysicsJobId) {
+      physicsProgress.classList.add("hidden");
+    }
+  }, 1400);
+}
+
+async function finishPhysicsProgress(status) {
+  if (physicsProgressTimer) {
+    window.clearTimeout(physicsProgressTimer);
+    physicsProgressTimer = null;
+  }
+  updatePhysicsProgress(status);
+  const ok = status.ok !== false && status.state !== "error";
+  setStatus(status.message || "OK: Rigid body simulation finished.", ok ? "success" : "error");
+  activePhysicsJobId = null;
+  physicsCancelRequested = false;
+  await refreshSelection();
+  await refreshPhysicsSelectionState();
+  await refreshPrecompSelectionState();
+  hidePhysicsProgressSoon();
+}
+
+async function pollPhysicsProgress() {
+  if (!activePhysicsJobId) {
+    return;
+  }
+
+  const result = await bridge.eval(`rdzTools.getRigidBodyJobStatus("${escapeString(activePhysicsJobId)}")`);
+  const status = parseHostJson(result, "Error: Could not read rigid body progress.");
+  updatePhysicsProgress(status);
+  if (status.state === "done" || status.state === "canceled" || status.state === "error") {
+    await finishPhysicsProgress(status);
+    return;
+  }
+
+  physicsProgressTimer = window.setTimeout(pollPhysicsProgress, 180);
+}
+
+async function startRigidBodySimulationWithProgress(payload) {
+  if (activePhysicsJobId) {
+    return;
+  }
+
+  const payloadString = escapeString(JSON.stringify(payload));
+  showPhysicsProgress("Preparing rigid body simulation...");
+  setStatus("Preparing rigid body simulation...");
+  const startResult = await bridge.eval(`rdzTools.startRigidBodySimulationJob("${payloadString}")`);
+  const startStatus = parseHostJson(startResult, "Error: Could not start rigid body simulation.");
+  if (!startStatus.ok || !startStatus.jobId) {
+    await finishPhysicsProgress(startStatus);
+    return;
+  }
+
+  activePhysicsJobId = startStatus.jobId;
+  updatePhysicsProgress(startStatus);
+  pollPhysicsProgress();
 }
 
 function escapeString(value) {
@@ -2198,6 +2354,11 @@ async function applyActiveTool() {
     return;
   }
   const payload = getToolPayload(activeToolId);
+  if (activeToolId === "rigidBodySim") {
+    await startRigidBodySimulationWithProgress(payload);
+    return;
+  }
+
   const payloadString = escapeString(JSON.stringify(payload));
 
   setStatus(`Applying ${toolMap[activeToolId].title}...`);
@@ -2211,6 +2372,11 @@ async function applyActiveTool() {
 
 async function applyToolById(toolId) {
   const payload = getToolPayload(toolId);
+  if (toolId === "rigidBodySim") {
+    await startRigidBodySimulationWithProgress(payload);
+    return;
+  }
+
   const payloadString = escapeString(JSON.stringify(payload));
   const result = await bridge.eval(`rdzTools.applyTool("${escapeString(toolId)}","${payloadString}")`);
   const ok = typeof result === "string" && result.indexOf("OK:") === 0;
@@ -2273,6 +2439,15 @@ function updateGraphHandleFromEvent(event) {
 }
 
 applyButton.addEventListener("click", applyActiveTool);
+cancelPhysicsProgressButton.addEventListener("click", async () => {
+  if (!activePhysicsJobId || physicsCancelRequested) {
+    return;
+  }
+  physicsCancelRequested = true;
+  cancelPhysicsProgressButton.disabled = true;
+  physicsProgressLabel.textContent = "Canceling rigid body simulation...";
+  await bridge.eval(`rdzTools.cancelRigidBodyJob("${escapeString(activePhysicsJobId)}")`);
+});
 openGlobalSettingsButton.addEventListener("click", openGlobalSettings);
 document.getElementById("closeSettings").addEventListener("click", closeSettings);
 document.getElementById("saveSettings").addEventListener("click", saveSettingsForEditingTool);
@@ -2445,6 +2620,12 @@ function pressRowState(event) {
   }
 
   row.classList.add("pressed");
+  if (row.classList.contains("run-tool-row")) {
+    dragGesture = null;
+    toolList.classList.remove("drag-primed");
+    return;
+  }
+
   if (event.target.closest("[data-edit-tool]") || event.target.closest("[data-dismiss-favorites-hint]")) {
     dragGesture = null;
     toolList.classList.remove("drag-primed");

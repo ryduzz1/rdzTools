@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest Version="7.0"
-  ExtensionBundleId="com.ryder.rdztools"
+  ExtensionBundleId="com.ryduzz.rdztools"
   ExtensionBundleVersion="1.0.0"
   ExtensionBundleName="rdzTools"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.ryder.rdztools.panel" Version="1.0.0" />
+    <Extension Id="com.ryduzz.rdztools.panel" Version="1.0.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -19,7 +19,7 @@
     </RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>
-    <Extension Id="com.ryder.rdztools.panel">
+    <Extension Id="com.ryduzz.rdztools.panel">
       <DispatchInfo>
         <Resources>
           <MainPath>./client/index.html</MainPath>
